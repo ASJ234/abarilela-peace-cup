@@ -5,5 +5,6 @@ export { MatchList } from "./MatchList";
 export { MatchMeta, MatchTag } from "./MatchTag";
 export { Scoreline } from "./Scoreline";
 export { SeasonNav } from "./SeasonNav";
+export { SeasonSwitcher, type SeasonChoice } from "./SeasonSwitcher";
 export { FormGuide, StandingsTable, TableLegend } from "./StandingsTable";
 export { StatTable, type StatRow } from "./StatTable";
