@@ -13,6 +13,7 @@ function toSeason(r: Row): Season {
     id: Number(r.id),
     name: String(r.name),
     format: (r.format === "groups" ? "groups" : "league") as Format,
+    pinned: Number(r.pinned ?? 0) === 1,
     points: { win: Number(r.points_win), draw: Number(r.points_draw), loss: Number(r.points_loss) },
     highlightTop: Number(r.highlight_top),
     relegation: Number(r.relegation),
@@ -294,4 +295,14 @@ export function listTeamChoices(db: DatabaseSync): { season: string; teams: { id
   return listSeasons(db)
     .map((s) => ({ season: s.name, teams: listTeams(db, s.id).map(({ id, name }) => ({ id, name })) }))
     .filter((s) => s.teams.length > 0);
+}
+
+/** Admin only: pin a season to the home page, or pass null to go back to automatic. */
+export function setPinnedSeason(db: DatabaseSync, acting: { role: string }, seasonId: number | null): void {
+  if (acting.role !== "admin") throw new LeagueError("Only the admin can choose the home page season.");
+  if (seasonId != null) mustGetSeason(db, seasonId);
+  tx(db, () => {
+    db.prepare("UPDATE seasons SET pinned = 0 WHERE pinned = 1").run();
+    if (seasonId != null) db.prepare("UPDATE seasons SET pinned = 1 WHERE id = ?").run(seasonId);
+  });
 }

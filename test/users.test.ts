@@ -68,7 +68,8 @@ describe("accounts", () => {
   it("migration keeps only the oldest admin if a database had several", () => {
     const old = new DatabaseSync(":memory:");
     migrate(old);
-    old.exec(`DROP INDEX idx_users_single_admin; PRAGMA user_version = 5;`);
+    old.exec(`DROP INDEX idx_users_single_admin; DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned;
+      PRAGMA user_version = 5;`); // pretend migrations 6 and 7 haven't run
     const h = users.hashPassword("12345678");
     for (const name of ["oldest", "second", "third"]) {
       old.prepare("INSERT INTO users (username, name, password_hash, role) VALUES (?, ?, ?, 'admin')").run(name, name, h);
@@ -166,6 +167,7 @@ describe("accounts", () => {
     migrate(old);
     // Rebuild a version-4 users table (email column) with two accounts.
     old.exec(`DROP TABLE sessions; DROP TABLE users; PRAGMA user_version = 4;
+      DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned;
       CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
         password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'fan', favourite_team_id INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')));
       CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);`);
@@ -218,5 +220,80 @@ describe("home page insights", () => {
 
     const snap = insights.teamSnapshot(db, t.Lions, league.getSeason(db, s.id)!)!;
     assert.deepEqual([snap.row?.position, snap.row?.points, snap.last?.id, snap.next?.kickoff], [1, 3, m1, "15:00"]);
+  });
+});
+
+describe("home page season", () => {
+  const at = (iso: string) => new Date(`${iso}:00`);
+  function setup() {
+    const db = fresh();
+    const mk = (name: string) => {
+      const s = league.createSeason(db, { name, win: 3, draw: 1, loss: 0, highlightTop: 4, relegation: 0 });
+      const [a, b] = league.addTeams(db, s.id, ["A", "B"]);
+      return { id: s.id, a: a.id, b: b.id };
+    };
+    return { db, mk };
+  }
+
+  it("no seasons: nothing to feature; only seasons without matches: the newest", () => {
+    const { db, mk } = setup();
+    assert.equal(insights.featuredSeason(db), null);
+    mk("Old");
+    const newest = mk("New");
+    assert.deepEqual([insights.featuredSeason(db)?.season.id, insights.featuredSeason(db)?.reason], [newest.id, "newest"]);
+  });
+
+  it("a running season stays featured when a newer, empty season is created", () => {
+    const { db, mk } = setup();
+    const running = mk("2026");
+    matches.createMatch(db, running.id, { homeTeamId: running.a, awayTeamId: running.b, date: "2026-05-02", kickoff: "15:00" });
+    mk("2027 (no fixtures yet)");
+    assert.deepEqual([insights.featuredSeason(db, at("2026-05-01T12:00"))?.season.id, insights.featuredSeason(db, at("2026-05-01T12:00"))?.reason], [running.id, "next-match"]);
+  });
+
+  it("the season with the soonest next match wins; a match that has kicked off no longer counts", () => {
+    const { db, mk } = setup();
+    const league1 = mk("League");
+    const cup = mk("Cup");
+    matches.createMatch(db, league1.id, { homeTeamId: league1.a, awayTeamId: league1.b, date: "2026-05-02", kickoff: "15:00" });
+    matches.createMatch(db, cup.id, { homeTeamId: cup.a, awayTeamId: cup.b, date: "2026-05-09" });
+    assert.equal(insights.featuredSeason(db, at("2026-05-01T09:00"))?.season.id, league1.id);
+    assert.equal(insights.featuredSeason(db, at("2026-05-02T16:00"))?.season.id, cup.id, "league match kicked off; cup is next");
+  });
+
+  it("when nothing is upcoming, the season with the latest result is featured", () => {
+    const { db, mk } = setup();
+    const finished = mk("Finished");
+    const older = mk("Older");
+    const m1 = matches.createMatch(db, finished.id, { homeTeamId: finished.a, awayTeamId: finished.b, date: "2026-04-20" });
+    const m2 = matches.createMatch(db, older.id, { homeTeamId: older.a, awayTeamId: older.b, date: "2026-03-01" });
+    matches.saveResult(db, m1, 1, 0);
+    matches.saveResult(db, m2, 2, 2);
+    assert.deepEqual([insights.featuredSeason(db, at("2026-06-01T12:00"))?.season.id, insights.featuredSeason(db, at("2026-06-01T12:00"))?.reason], [finished.id, "latest-result"]);
+  });
+
+  it("the admin's pin overrides everything; only one pin; unpin returns to automatic; only the admin can pin", () => {
+    const { db, mk } = setup();
+    const running = mk("Running");
+    const other = mk("Other");
+    matches.createMatch(db, running.id, { homeTeamId: running.a, awayTeamId: running.b, date: "2999-01-01" });
+    const admin = users.setUpAdmin(db, "boss", "12345678");
+    const official = users.adminCreateUser(db, admin, { username: "ref", password: "12345678", role: "official" });
+
+    assert.throws(() => league.setPinnedSeason(db, official, other.id), /Only the admin/);
+    league.setPinnedSeason(db, admin, other.id);
+    assert.deepEqual([insights.featuredSeason(db)?.season.id, insights.featuredSeason(db)?.reason], [other.id, "pinned"]);
+
+    league.setPinnedSeason(db, admin, running.id); // moving the pin
+    assert.deepEqual(league.listSeasons(db).filter((s) => s.pinned).map((s) => s.id), [running.id]);
+    assert.throws(() => db.prepare("UPDATE seasons SET pinned = 1 WHERE id = ?").run(other.id), /UNIQUE/, "database allows one pin");
+
+    league.setPinnedSeason(db, admin, null);
+    assert.equal(insights.featuredSeason(db)?.reason, "next-match");
+
+    league.setPinnedSeason(db, admin, other.id);
+    league.deleteSeason(db, other.id);
+    assert.equal(insights.featuredSeason(db)?.season.id, running.id, "deleting the pinned season falls back to automatic");
+    assert.throws(() => league.setPinnedSeason(db, admin, 9999), /Season not found/);
   });
 });

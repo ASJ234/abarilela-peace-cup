@@ -3,6 +3,7 @@ export { DateEditor } from "./DateEditor";
 export { EventForm } from "./EventForm";
 export { FixtureGenerator } from "./FixtureGenerator";
 export { GroupManager } from "./GroupManager";
+export { HomePagePin } from "./HomePagePin";
 export { EditMatchButton, MatchEditProvider } from "./MatchEditDialog";
 export { MatchFields } from "./MatchFields";
 export { OfficialSeasonNav } from "./OfficialSeasonNav";

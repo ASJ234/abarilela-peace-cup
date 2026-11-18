@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AddUserForm, UserDirectory } from "@/components/admin";
-import { Card, PageHeader, Section } from "@/components/ui";
+import { Collapsible, PageHeader, Section } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { listTeamChoices } from "@/lib/league";
 import { listUsers } from "@/lib/users";
@@ -24,17 +24,12 @@ export default async function UsersPage() {
         back={{ href: "/official", label: "Official panel" }}
       />
 
-      <Card>
-        <details open={users.length <= 1} className="group p-4 sm:p-6">
-          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
-            <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span> Add a user
-          </summary>
-          <p className="mb-4 mt-1 text-sm text-muted">
-            Create an account for an official (or a fan) and give them the username and password.
-          </p>
-          <AddUserForm teams={teams} />
-        </details>
-      </Card>
+      <Collapsible title="Add a user" defaultOpen={users.length <= 1}>
+        <p className="mb-4 mt-1 text-sm text-muted">
+          Create an account for an official (or a fan) and give them the username and password.
+        </p>
+        <AddUserForm teams={teams} />
+      </Collapsible>
 
       <Section
         title="All users"

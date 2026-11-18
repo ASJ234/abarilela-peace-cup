@@ -23,6 +23,12 @@ don't count toward the tables. The format can't be changed while league/group fi
 
 ### Home page
 
+**Which season is featured:** the season the admin pins (Settings → *Home page* → *Pin to the
+home page*). If none is pinned, the season with the **soonest upcoming match** is chosen. If no
+matches are upcoming, it's the season with the most recent result, or else the newest season. So
+creating next year's season early doesn't replace the one still being played. A fan's ⭐ *Your
+team* card always uses their team's own season, and *All competitions* lists every season.
+
 The home page shows:
 
 - a welcome banner, and a spotlight on the next match with a live countdown;

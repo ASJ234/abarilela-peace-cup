@@ -11,6 +11,8 @@ export type Season = {
   id: number;
   name: string;
   format: Format;
+  /** Pinned by the admin as the season shown on the home page. */
+  pinned: boolean;
   points: Points;
   /** How many places at the top of each table are highlighted (e.g. 4). */
   highlightTop: number;

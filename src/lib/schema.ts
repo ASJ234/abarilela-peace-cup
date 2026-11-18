@@ -122,6 +122,12 @@ const MIGRATIONS: string[] = [
    WHERE role = 'admin' AND id <> (SELECT MIN(id) FROM users WHERE role = 'admin');
   CREATE UNIQUE INDEX idx_users_single_admin ON users(role) WHERE role = 'admin';
   `,
+
+  // 7: the admin can pin one season to the home page (otherwise it's chosen automatically).
+  `
+  ALTER TABLE seasons ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1));
+  CREATE UNIQUE INDEX idx_seasons_single_pin ON seasons(pinned) WHERE pinned = 1;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): void {

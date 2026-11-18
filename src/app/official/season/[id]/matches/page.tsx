@@ -4,7 +4,7 @@ import { createMatchAction, deleteMatchAction } from "@/app/actions";
 import { ActionForm, DeleteButton, SubmitButton } from "@/components/forms";
 import { MatchDayList, MatchMeta } from "@/components/league";
 import { EditMatchButton, MatchEditProvider, MatchFields, ResultForm } from "@/components/official";
-import { Card, EmptyState, LinkButton } from "@/components/ui";
+import { Collapsible, EmptyState, LinkButton } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { listGroups, listTeams } from "@/lib/league";
 import { listMatches } from "@/lib/matches";
@@ -22,21 +22,16 @@ export default async function MatchesPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-6">
-      <Card>
-        <details open={matches.length === 0} className="group p-4 sm:p-6">
-          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
-            <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span> Add a match
-          </summary>
-          {teams.length < 2 ? (
-            <p className="mt-3 text-sm text-muted">Add at least 2 teams first.</p>
-          ) : (
-            <ActionForm action={createMatchAction} fields={{ seasonId: season.id }} className="mt-4 space-y-3">
-              <MatchFields teams={teams} groups={groups} format={season.format} />
-              <SubmitButton className="w-full sm:w-auto">Add match</SubmitButton>
-            </ActionForm>
-          )}
-        </details>
-      </Card>
+      <Collapsible title="Add a match" defaultOpen={matches.length === 0}>
+        {teams.length < 2 ? (
+          <p className="mt-3 text-sm text-muted">Add at least 2 teams first.</p>
+        ) : (
+          <ActionForm action={createMatchAction} fields={{ seasonId: season.id }} className="mt-4 space-y-3">
+            <MatchFields teams={teams} groups={groups} format={season.format} />
+            <SubmitButton className="w-full sm:w-auto">Add match</SubmitButton>
+          </ActionForm>
+        )}
+      </Collapsible>
 
       {matches.length === 0 ? (
         <EmptyState icon="📅" title="No matches yet">

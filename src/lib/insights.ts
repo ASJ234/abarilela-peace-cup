@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { getTeam } from "./league";
+import { getTeam, listSeasons } from "./league";
 import { getTables, listMatches } from "./matches";
 import type { Match, Season, StandingRow } from "./types";
 import type { Row } from "./validate";
@@ -127,4 +127,53 @@ export function teamSnapshot(db: DatabaseSync, teamId: number, season: Season): 
     next: upcoming(ms, 1)[0] ?? null,
     last: latestResults(ms, 1)[0] ?? null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Which season the home page features
+// ---------------------------------------------------------------------------
+
+export type FeaturedReason = "pinned" | "next-match" | "latest-result" | "newest";
+export type Featured = { season: Season; reason: FeaturedReason };
+
+/**
+ * The season shown on the home page:
+ * 1. the season the admin pinned, if any;
+ * 2. otherwise the season whose next (not yet kicked-off) match is soonest,
+ *    so a running season isn't replaced by a newly created, empty one;
+ * 3. otherwise the season with the most recent result (e.g. just finished);
+ * 4. otherwise the newest season.
+ */
+export function featuredSeason(db: DatabaseSync, now: Date = new Date()): Featured | null {
+  const seasons = listSeasons(db); // newest first
+  if (seasons.length === 0) return null;
+
+  const pinned = seasons.find((s) => s.pinned);
+  if (pinned) return { season: pinned, reason: "pinned" };
+
+  const t = localNow(now);
+  const next = db
+    .prepare(
+      `SELECT season_id, MIN(date || ' ' || COALESCE(kickoff, '00:00')) AS at
+         FROM matches
+        WHERE home_score IS NULL AND date IS NOT NULL
+          AND (date > ? OR (date = ? AND (kickoff IS NULL OR kickoff > ?)))
+        GROUP BY season_id
+        ORDER BY at, season_id DESC
+        LIMIT 1`,
+    )
+    .get(t.date, t.date, t.time);
+  if (next) return { season: seasons.find((s) => s.id === Number(next.season_id))!, reason: "next-match" };
+
+  const last = db
+    .prepare(
+      `SELECT season_id FROM matches
+        WHERE home_score IS NOT NULL
+        ORDER BY date IS NULL, date DESC, kickoff DESC, id DESC
+        LIMIT 1`,
+    )
+    .get();
+  if (last) return { season: seasons.find((s) => s.id === Number(last.season_id))!, reason: "latest-result" };
+
+  return { season: seasons[0], reason: "newest" };
 }

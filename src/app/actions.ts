@@ -126,6 +126,15 @@ export async function deleteUserAction(_: FormState, fd: FormData): Promise<Form
 
 // ---- Seasons ---------------------------------------------------------------
 
+/** Admin: pin this season to the home page (pin=1) or return to automatic (pin=0). */
+export async function setPinnedSeasonAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    const pin = fd.get("pin") === "1";
+    league.setPinnedSeason(getDb(), me, pin ? id(fd, "seasonId") : null);
+    return pin ? "Pinned to the home page." : "The home page now chooses the season automatically.";
+  });
+}
+
 function seasonInput(fd: FormData): league.SeasonInput {
   return {
     name: fd.get("name"), format: fd.get("format") ?? undefined, win: fd.get("win"), draw: fd.get("draw"), loss: fd.get("loss"),

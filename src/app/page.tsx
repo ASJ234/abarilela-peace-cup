@@ -3,7 +3,7 @@ import {
 } from "@/components/home";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { fairPlay, latestResults, seasonNumbers, seasonRecords, teamSnapshot, upcoming } from "@/lib/insights";
+import { fairPlay, featuredSeason, latestResults, seasonNumbers, seasonRecords, teamSnapshot, upcoming } from "@/lib/insights";
 import { getSeason, getTeam, listSeasons } from "@/lib/league";
 import { getTables, listMatches } from "@/lib/matches";
 import { topAssists, topScorers } from "@/lib/players";
@@ -12,7 +12,8 @@ export default async function Home() {
   const db = getDb();
   const me = await getCurrentUser();
   const seasons = listSeasons(db);
-  const featured = seasons[0] ?? null; // the newest season
+  // Pinned by the admin, else the season with the next match, else the latest result, else the newest.
+  const featured = featuredSeason(db)?.season ?? null;
 
   // A fan's favourite team may be in an older season; show it with its own season.
   const favTeam = me?.favouriteTeamId != null ? getTeam(db, me.favouriteTeamId) : null;

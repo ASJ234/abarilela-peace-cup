@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { SeasonForm } from "@/components/official";
-import { EmptyState, LinkButton, PageHeader, Section } from "@/components/ui";
+import { Badge, EmptyState, LinkButton, PageHeader, Section } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { listGroups, listSeasons, listTeams } from "@/lib/league";
+import { featuredSeason } from "@/lib/insights";
 import { fixtureCount, resultCount } from "@/lib/matches";
 import { FORMAT_LABEL } from "@/lib/types";
 import { canManageLeague } from "@/lib/users";
@@ -38,6 +39,8 @@ export default async function OfficialHome() {
     results: resultCount(db, s.id),
   }));
 
+  const featured = featuredSeason(db);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -55,7 +58,12 @@ export default async function OfficialHome() {
             {seasons.map((s) => (
               <li key={s.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{s.name}</p>
+                  <p className="flex flex-wrap items-center gap-2 font-semibold">
+                    <span className="min-w-0 truncate">{s.name}</span>
+                    {featured?.season.id === s.id && (
+                      <Badge tone="success">{featured.reason === "pinned" ? "📌 Home page (pinned)" : "🏠 Home page"}</Badge>
+                    )}
+                  </p>
                   <p className="text-sm text-muted">
                     {FORMAT_LABEL[s.format]} · {s.teams} teams{s.format === "groups" ? ` in ${s.groups} groups` : ""} · {s.fixtures} matches · {s.results} played
                   </p>
