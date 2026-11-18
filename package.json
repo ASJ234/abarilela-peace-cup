@@ -8,7 +8,8 @@
     "start": "node --no-warnings=ExperimentalWarning node_modules/next/dist/bin/next start",
     "lint": "eslint",
     "test": "node --no-warnings=ExperimentalWarning --import tsx --test test/*.test.ts",
-    "seed": "node --no-warnings=ExperimentalWarning --import tsx scripts/seed.ts"
+    "seed": "node --no-warnings=ExperimentalWarning --import tsx scripts/seed.ts",
+    "admin": "node --no-warnings=ExperimentalWarning --import tsx scripts/admin.ts"
   },
   "dependencies": {
     "next": "16.4.6",

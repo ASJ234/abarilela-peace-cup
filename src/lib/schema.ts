@@ -106,6 +106,22 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_sessions_user ON sessions(user_id);
   `,
+
+  // 5: sign in with a username instead of an email. Existing accounts get the part of
+  //    their email before "@" plus their id (e.g. "grace_2"), and the email is dropped.
+  `
+  ALTER TABLE users RENAME COLUMN email TO username;
+  UPDATE users
+     SET username = lower(substr(username, 1, instr(username, '@') - 1)) || '_' || id
+   WHERE instr(username, '@') > 0;
+  `,
+
+  // 6: there is exactly one admin. Extra admins (if any) become fans, keeping the oldest.
+  `
+  UPDATE users SET role = 'fan'
+   WHERE role = 'admin' AND id <> (SELECT MIN(id) FROM users WHERE role = 'admin');
+  CREATE UNIQUE INDEX idx_users_single_admin ON users(role) WHERE role = 'admin';
+  `,
 ];
 
 export function migrate(db: DatabaseSync): void {

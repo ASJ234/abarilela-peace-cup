@@ -15,8 +15,8 @@ export function SignInForm({ next }: { next: string }) {
   return (
     <form action={action} className="space-y-4">
       <HiddenFields fields={{ next }} />
-      <Field label="Email">
-        <Input name="email" type="email" required autoComplete="email" autoFocus inputMode="email" />
+      <Field label="Username">
+        <Input name="username" required autoComplete="username" autoFocus autoCapitalize="none" autoCorrect="off" spellCheck={false} />
       </Field>
       <Field label="Password">
         <PasswordInput name="password" required autoComplete="current-password" />
@@ -36,11 +36,22 @@ export function SignUpForm({ next, teams }: { next: string; teams: TeamChoices }
   return (
     <form action={action} className="space-y-4">
       <HiddenFields fields={{ next }} />
-      <Field label="Your name">
-        <Input name="name" required maxLength={60} autoComplete="name" autoFocus />
+      <Field label="Username" hint="3–30 characters: letters, numbers, dots, dashes or underscores. You'll use it to sign in.">
+        <Input
+          name="username"
+          required
+          minLength={3}
+          maxLength={30}
+          pattern="[A-Za-z0-9._\-]{3,30}"
+          autoComplete="username"
+          autoFocus
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+        />
       </Field>
-      <Field label="Email">
-        <Input name="email" type="email" required autoComplete="email" inputMode="email" />
+      <Field label="Display name (optional)" hint="Shown on the site instead of your username.">
+        <Input name="name" maxLength={60} autoComplete="name" />
       </Field>
       <Field label="Password" hint="At least 8 characters.">
         <PasswordInput name="password" required minLength={8} autoComplete="new-password" />

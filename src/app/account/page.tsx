@@ -21,7 +21,7 @@ export default async function AccountPage() {
         title="Your account"
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
-            {me.email} <Badge tone={me.role === "fan" ? "neutral" : "brand"}>{ROLE_LABEL[me.role]}</Badge>
+            @{me.username} <Badge tone={me.role === "fan" ? "neutral" : "brand"}>{ROLE_LABEL[me.role]}</Badge>
           </span>
         }
         actions={

@@ -67,7 +67,14 @@ The home page shows:
   - On each match's **Details** page you can record goals (with an optional assist), own goals,
     and yellow and red cards, each with an optional minute. A warning appears if the goals
     recorded don't add up to the score.
-- **Users & roles** (admin only): promote fans to officials or demote them.
+- **Users & roles** (admin only): full user management for fans and officials.
+  - **Create** an account (username, display name, password, role, favourite team).
+  - **Search** and browse users grouped as Admin, Officials and Fans.
+  - **Edit** username, display name, role or favourite team, and **set a new password** (the
+    user is signed out everywhere).
+  - **Delete** an account (with confirmation).
+  - Demoting or deleting an official ends their access at once. The admin account itself can't
+    be edited or deleted here; it's managed on the Account page and with `npm run admin`.
 - **Settings:** points for a win, draw and loss (default 3/1/0), how many top places to highlight,
   and how many bottom places to mark.
 
@@ -85,12 +92,16 @@ Requires **Node.js 22.13 or newer**.
 
 ```bash
 npm install
-cp .env.example .env.local     # then put your email in ADMIN_EMAIL
-npm run dev                    # http://localhost:3000
+npm run admin -- <username> <password>   # create your admin account
+npm run dev                              # http://localhost:3000
 ```
 
-Then click **Sign up** and create an account with the email you set as `ADMIN_EMAIL`. That account
-becomes the **admin**. If the account already exists, it becomes admin the next time you sign in.
+Then **Sign in** with that username and password. The site has **exactly one admin**:
+
+- `npm run admin -- <admin's username> <new password>` resets the admin's password (e.g. if forgotten).
+- `npm run admin -- <other username> <password> --replace` hands the admin role to another account;
+  the previous admin becomes a fan and is signed out.
+- Any other attempt to create a second admin is refused, and the database itself allows only one.
 
 To explore with demo data (a home-and-away league and a group-stage cup with squads, results,
 scorers and cards):
@@ -103,18 +114,21 @@ npm run seed
 
 | Role         | How you get it                                    | Can                                                            |
 | ------------ | ------------------------------------------------- | -------------------------------------------------------------- |
-| **Fan**      | Anyone can sign up                                | Pick a favourite team (shown on the home page), manage account |
+| **Fan**      | Anyone can sign up with a username and password   | Pick a favourite team (shown on the home page), manage account |
 | **Official** | The admin promotes a user on **Users & roles**    | Everything a fan can, plus manage seasons, teams, fixtures, results |
-| **Admin**    | Sign up or sign in with an `ADMIN_EMAIL` address  | Everything, plus promote or demote officials                   |
+| **Admin**    | Exactly one, set on the server with `npm run admin` | Everything, plus promote or demote officials                 |
 
-Passwords are hashed with scrypt, and sessions are stored in the database as hashes and last 30 days.
-After 5 wrong passwords, an email is locked for 10 minutes. Demoting an official signs them out.
+Accounts use a **username** (3–30 letters, numbers, dots, dashes or underscores; capitals don't
+matter) and a password of at least 8 characters. No email is collected. Passwords are hashed with
+scrypt, and sessions are stored in the database as hashes and last 30 days. After 5 wrong passwords,
+that username is locked for 10 minutes. Demoting an official signs them out.
 
 ### Production
 
 ```bash
 npm run build
-ADMIN_EMAIL=you@example.com npm start
+npm run admin -- <username> <password>   # once, on the server
+npm start
 ```
 
 All data lives in one file, `data/league.db` (change it with `DB_FILE`). Back it up by copying that
@@ -130,7 +144,8 @@ Serverless hosts such as Vercel have no persistent filesystem.
 | `npm run build`  | Production build                                               |
 | `npm start`      | Run the production build                                       |
 | `npm test`       | Unit and integration tests (fixtures, scheduling, tables, groups, squads, events, stats, migrations) |
-| `npm run seed`   | Add a demo season                                              |
+| `npm run seed`   | Add demo seasons                                               |
+| `npm run admin -- <user> <pass> [--replace]` | Create the one admin, reset its password, or hand the role over |
 | `npm run lint`   | ESLint                                                         |
 
 ## Project layout
@@ -160,6 +175,7 @@ src/
                          ActionButton, DeleteButton (built-in Cancel/Delete dialog), AutoSaveSelect
     league/            football display components shared by public and official pages:
                          StandingsTable, MatchList, MatchDayList, Scoreline, MatchTag, EventList, StatTable, SeasonNav
+    admin/             admin-only user management: UserDirectory (search, edit dialog, delete), AddUserForm, UserFields
     official/          official-panel features: TeamList, GroupManager, SquadEditor, DateEditor,
                          FixtureGenerator, MatchFields, ResultForm, EventForm, SeasonForm, LoginForm
     home/              home page: Hero, Countdown, YourTeam, StatStrip, MiniTable, Podium, FairPlay, Records…

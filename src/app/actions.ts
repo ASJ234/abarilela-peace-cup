@@ -40,7 +40,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 
 export async function signInAction(_: FormState, fd: FormData): Promise<FormState> {
-  const result = await signInWithPassword(str(fd, "email"), str(fd, "password"));
+  const result = await signInWithPassword(str(fd, "username"), str(fd, "password"));
   if (!result.ok) return { error: result.error };
   redirect(safeNextPath(fd.get("next")));
 }
@@ -48,7 +48,7 @@ export async function signInAction(_: FormState, fd: FormData): Promise<FormStat
 export async function signUpAction(_: FormState, fd: FormData): Promise<FormState> {
   try {
     await registerAndSignIn({
-      name: fd.get("name"), email: fd.get("email"), password: fd.get("password"), favouriteTeamId: fd.get("favouriteTeamId"),
+      username: fd.get("username"), name: fd.get("name"), password: fd.get("password"), favouriteTeamId: fd.get("favouriteTeamId"),
     });
   } catch (err) {
     if (err instanceof LeagueError) return { error: err.message };
@@ -91,10 +91,36 @@ export async function changePasswordAction(_: FormState, fd: FormData): Promise<
   });
 }
 
-export async function setUserRoleAction(_: FormState, fd: FormData): Promise<FormState> {
+function managedUserInput(fd: FormData): users.ManagedUserInput {
+  return { username: fd.get("username"), name: fd.get("name"), role: fd.get("role"), favouriteTeamId: fd.get("favouriteTeamId") };
+}
+
+export async function createUserAction(_: FormState, fd: FormData): Promise<FormState> {
   return forSignedIn((me) => {
-    const u = users.setRole(getDb(), me, id(fd, "userId"), fd.get("role"));
-    return `${u.name} is now ${u.role === "official" ? "an official" : "a fan"}.`;
+    const u = users.adminCreateUser(getDb(), me, { ...managedUserInput(fd), password: fd.get("password") });
+    return `Created @${u.username} (${users.ROLE_LABEL[u.role]}). Share the username and password with them.`;
+  });
+}
+
+export async function updateUserAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    const u = users.adminUpdateUser(getDb(), me, id(fd, "userId"), managedUserInput(fd));
+    return `Saved @${u.username}.`;
+  });
+}
+
+export async function resetUserPasswordAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    if (str(fd, "password") !== str(fd, "confirmPassword")) throw new LeagueError("The passwords don't match.");
+    const u = users.adminResetPassword(getDb(), me, id(fd, "userId"), fd.get("password"));
+    return `New password set for @${u.username}. They've been signed out and must use the new password.`;
+  });
+}
+
+export async function deleteUserAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    const u = users.adminDeleteUser(getDb(), me, id(fd, "userId"));
+    return `Deleted @${u.username}.`;
   });
 }
 

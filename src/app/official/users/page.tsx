@@ -1,64 +1,46 @@
 import type { Metadata } from "next";
-import { setUserRoleAction } from "@/app/actions";
-import { AutoSaveSelect } from "@/components/forms";
-import { Badge, PageHeader, Section } from "@/components/ui";
+import { AddUserForm, UserDirectory } from "@/components/admin";
+import { Card, PageHeader, Section } from "@/components/ui";
 import { getDb } from "@/lib/db";
-import { initials } from "@/lib/format";
-import { ROLE_LABEL, listUsers } from "@/lib/users";
+import { listTeamChoices } from "@/lib/league";
+import { listUsers } from "@/lib/users";
 import { requireAdmin } from "../access";
 
 export const metadata: Metadata = { title: "Users & roles" };
 
-const ROLE_OPTIONS = [
-  { value: "fan", label: "Fan" },
-  { value: "official", label: "Official" },
-];
-
 export default async function UsersPage() {
   const me = await requireAdmin("/official/users");
-  const users = listUsers(getDb());
-  const officials = users.filter((u) => u.role !== "fan").length;
+  const db = getDb();
+  const users = listUsers(db);
+  const teams = listTeamChoices(db);
+  const officials = users.filter((u) => u.role === "official").length;
+  const fans = users.filter((u) => u.role === "fan").length;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Users & roles"
-        subtitle={`${users.length} account${users.length === 1 ? "" : "s"} · ${officials} with official access`}
+        subtitle={`${users.length} account${users.length === 1 ? "" : "s"}: 1 admin · ${officials} official${officials === 1 ? "" : "s"} · ${fans} fan${fans === 1 ? "" : "s"}`}
         back={{ href: "/official", label: "Official panel" }}
       />
+
+      <Card>
+        <details open={users.length <= 1} className="group p-4 sm:p-6">
+          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
+            <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span> Add a user
+          </summary>
+          <p className="mb-4 mt-1 text-sm text-muted">
+            Create an account for an official (or a fan) and give them the username and password.
+          </p>
+          <AddUserForm teams={teams} />
+        </details>
+      </Card>
+
       <Section
-        title="Who can manage the league"
-        description="Fans can follow a team. Officials can manage seasons, teams, fixtures and results. Changing someone to Fan signs them out of official tools straight away."
+        title="All users"
+        description="Fans follow a team. Officials manage seasons, teams, fixtures and results. There is one admin."
       >
-        <ul className="divide-y divide-border rounded-lg border border-border">
-          {users.map((u) => (
-            <li key={u.id} className="flex flex-wrap items-center gap-3 p-3">
-              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-bold">
-                {initials(u.name)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {u.name} {u.id === me.id && <span className="text-sm text-muted">(you)</span>}
-                </span>
-                <span className="block truncate text-sm text-muted">{u.email}</span>
-              </span>
-              {u.role === "admin" ? (
-                <Badge tone="brand">{ROLE_LABEL.admin}</Badge>
-              ) : (
-                <div className="w-full sm:w-36">
-                  <AutoSaveSelect
-                    action={setUserRoleAction}
-                    fields={{ userId: u.id }}
-                    name="role"
-                    label={`Role for ${u.name}`}
-                    defaultValue={u.role}
-                    options={ROLE_OPTIONS}
-                  />
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+        <UserDirectory users={users} meId={me.id} teams={teams} />
       </Section>
     </div>
   );
