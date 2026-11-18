@@ -1,17 +1,33 @@
 import type { Metadata } from "next";
-import { logoutAction } from "@/app/actions";
-import { LoginForm, SeasonForm } from "@/components/official";
-import { Button, EmptyState, LinkButton, PageHeader, Section } from "@/components/ui";
-import { isOfficial } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { SeasonForm } from "@/components/official";
+import { EmptyState, LinkButton, PageHeader, Section } from "@/components/ui";
+import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { listGroups, listSeasons, listTeams } from "@/lib/league";
 import { fixtureCount, resultCount } from "@/lib/matches";
 import { FORMAT_LABEL } from "@/lib/types";
+import { canManageLeague } from "@/lib/users";
 
 export const metadata: Metadata = { title: "Official panel" };
 
 export default async function OfficialHome() {
-  if (!(await isOfficial())) return <LoginForm />;
+  const me = await getCurrentUser();
+  if (!me) redirect("/signin?next=/official");
+
+  if (!canManageLeague(me)) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <EmptyState icon="🔒" title="Officials only">
+          <p>
+            You&apos;re signed in as a fan. Officials manage teams, fixtures and results. If you help run the
+            Peace Cup, ask the admin to make your account an official.
+          </p>
+          <LinkButton href="/" variant="primary" className="mt-4">Back to the home page</LinkButton>
+        </EmptyState>
+      </div>
+    );
+  }
 
   const db = getDb();
   const seasons = listSeasons(db).map((s) => ({
@@ -26,11 +42,8 @@ export default async function OfficialHome() {
     <div className="space-y-6">
       <PageHeader
         title="Official panel"
-        actions={
-          <form action={logoutAction}>
-            <Button variant="secondary">Sign out</Button>
-          </form>
-        }
+        subtitle={`Signed in as ${me.name}`}
+        actions={me.role === "admin" ? <LinkButton href="/official/users">👥 Users &amp; roles</LinkButton> : undefined}
       />
 
       <section>

@@ -86,6 +86,26 @@ const MIGRATIONS: string[] = [
   ALTER TABLE seasons ADD COLUMN format TEXT NOT NULL DEFAULT 'league' CHECK (format IN ('league', 'groups'));
   UPDATE seasons SET format = 'groups' WHERE id IN (SELECT season_id FROM league_groups);
   `,
+
+  // 4: user accounts (fans, officials, admin) and sign-in sessions
+  `
+  CREATE TABLE users (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    email              TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+    name               TEXT    NOT NULL,
+    password_hash      TEXT    NOT NULL,
+    role               TEXT    NOT NULL DEFAULT 'fan' CHECK (role IN ('fan', 'official', 'admin')),
+    favourite_team_id  INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+    created_at         TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+  -- Only a hash of each session token is stored, so a leaked database can't be used to sign in.
+  CREATE TABLE sessions (
+    token_hash  TEXT    PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at  INTEGER NOT NULL
+  );
+  CREATE INDEX idx_sessions_user ON sessions(user_id);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): void {

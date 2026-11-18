@@ -1,18 +1,85 @@
-import { redirect } from "next/navigation";
-import { EmptyState, LinkButton } from "@/components/ui";
+import {
+  About, Competitions, FairPlay, Hero, HomeCard, MatchMiniList, MiniTable, Podium, Records, StatStrip, YourTeam,
+} from "@/components/home";
+import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { listSeasons } from "@/lib/league";
+import { fairPlay, latestResults, seasonNumbers, seasonRecords, teamSnapshot, upcoming } from "@/lib/insights";
+import { getSeason, getTeam, listSeasons } from "@/lib/league";
+import { getTables, listMatches } from "@/lib/matches";
+import { topAssists, topScorers } from "@/lib/players";
 
-export default function Home() {
-  const [latest] = listSeasons(getDb());
-  if (latest) redirect(`/season/${latest.id}`);
+export default async function Home() {
+  const db = getDb();
+  const me = await getCurrentUser();
+  const seasons = listSeasons(db);
+  const featured = seasons[0] ?? null; // the newest season
+
+  // A fan's favourite team may be in an older season; show it with its own season.
+  const favTeam = me?.favouriteTeamId != null ? getTeam(db, me.favouriteTeamId) : null;
+  const favSeason = favTeam ? getSeason(db, favTeam.seasonId) : null;
+  const snapshot = favTeam && favSeason ? teamSnapshot(db, favTeam.id, favSeason) : null;
+
+  if (!featured) {
+    return (
+      <div className="space-y-6">
+        <Hero season={null} nextMatch={null} signedIn={!!me} name={me?.name} />
+        <About />
+      </div>
+    );
+  }
+
+  const matches = listMatches(db, featured.id);
+  const next = upcoming(matches, 1)[0] ?? null;
+  const base = `/season/${featured.id}`;
+  const competitions = seasons.map((s) => {
+    const n = seasonNumbers(db, s.id);
+    return { ...s, played: n.played, matches: n.matches, teams: n.teams };
+  });
 
   return (
-    <div className="mx-auto max-w-lg">
-      <EmptyState icon="🏆" title="No season yet">
-        <p>Once an official creates a season, adds teams and generates fixtures, the league table will appear here.</p>
-        <LinkButton href="/official" variant="primary" className="mt-4">Official sign in</LinkButton>
-      </EmptyState>
+    <div className="space-y-6">
+      <Hero season={featured} nextMatch={next} signedIn={!!me} name={me?.name} />
+
+      <YourTeam snapshot={snapshot} signedIn={!!me} />
+
+      <StatStrip n={seasonNumbers(db, featured.id)} />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="space-y-6">
+          <HomeCard title="Latest results" icon="✅" href={`${base}/results`}>
+            <MatchMiniList matches={latestResults(matches, 4)} seasonId={featured.id} empty="No results yet." />
+          </HomeCard>
+          <HomeCard title="Coming up" icon="📅" href={`${base}/fixtures`}>
+            <MatchMiniList matches={upcoming(matches, 5).slice(next ? 1 : 0)} seasonId={featured.id} empty="Nothing else scheduled yet." />
+          </HomeCard>
+          <HomeCard title="Season records" icon="📜">
+            <Records records={seasonRecords(matches)} seasonId={featured.id} />
+          </HomeCard>
+        </div>
+        <div className="space-y-6">
+          <HomeCard title={featured.format === "groups" ? "Group leaders" : "Top of the table"} icon="🏆" href={base} linkLabel="Full table">
+            <MiniTable tables={getTables(db, featured)} seasonId={featured.id} />
+          </HomeCard>
+          <HomeCard title="Golden Boot race" icon="⚽" href={`${base}/stats`}>
+            <Podium stats={topScorers(db, featured.id, 3)} unit="goals" seasonId={featured.id} empty="No goals yet. Who will score first?" />
+          </HomeCard>
+          <HomeCard title="Top playmakers" icon="🎯" href={`${base}/stats`}>
+            <Podium stats={topAssists(db, featured.id, 3)} unit="assists" seasonId={featured.id} empty="No assists recorded yet." />
+          </HomeCard>
+          <HomeCard title="Fair Play award" icon="🕊️" href={`${base}/stats`} linkLabel="Discipline">
+            <FairPlay rows={fairPlay(db, featured.id)} />
+          </HomeCard>
+        </div>
+      </div>
+
+      {competitions.length > 1 && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">All competitions</h2>
+          <Competitions seasons={competitions} />
+        </section>
+      )}
+
+      <About />
     </div>
   );
 }

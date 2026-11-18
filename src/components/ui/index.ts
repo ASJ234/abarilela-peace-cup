@@ -6,4 +6,5 @@ export { Modal } from "./Modal";
 export { Alert, Badge, EmptyState } from "./Feedback";
 export { Checkbox, Field, Input, Select, Textarea, inputClass } from "./Field";
 export { PageHeader } from "./PageHeader";
+export { PasswordInput } from "./PasswordInput";
 export { Tabs, type TabItem } from "./Tabs";

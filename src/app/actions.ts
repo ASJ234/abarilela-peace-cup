@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { isOfficial, signIn, signOut } from "@/lib/auth";
+import { getCurrentUser, isOfficial, registerAndSignIn, signInWithPassword, signOut } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { safeNextPath } from "@/lib/format";
 import * as league from "@/lib/league";
 import * as matches from "@/lib/matches";
 import * as players from "@/lib/players";
+import * as users from "@/lib/users";
 import { LeagueError, optionalNumber, splitNameList } from "@/lib/validate";
 
 export type FormState = { ok?: string; error?: string } | undefined;
@@ -15,7 +17,7 @@ type Action = (prev: FormState, fd: FormData) => Promise<FormState>;
 /** Runs an official-only mutation, turning rule violations into form errors. */
 async function guarded(fn: () => string | void): Promise<FormState> {
   try {
-    if (!(await isOfficial())) throw new LeagueError("Your session has expired. Please sign in again.");
+    if (!(await isOfficial())) throw new LeagueError("You need to be signed in as an official to do that.");
     const ok = fn();
     revalidatePath("/", "layout");
     return { ok: ok || "Saved." };
@@ -34,16 +36,66 @@ const str = (fd: FormData, key: string) => String(fd.get(key) ?? "");
 const lines = (fd: FormData, key: string) => str(fd, key).split(/\r?\n/);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-// ---- Auth ------------------------------------------------------------------
+// ---- Accounts --------------------------------------------------------------
 
-export async function loginAction(_: FormState, fd: FormData): Promise<FormState> {
-  if (!(await signIn(str(fd, "password")))) return { error: "Wrong password." };
-  redirect("/official");
+
+export async function signInAction(_: FormState, fd: FormData): Promise<FormState> {
+  const result = await signInWithPassword(str(fd, "email"), str(fd, "password"));
+  if (!result.ok) return { error: result.error };
+  redirect(safeNextPath(fd.get("next")));
 }
 
-export async function logoutAction() {
+export async function signUpAction(_: FormState, fd: FormData): Promise<FormState> {
+  try {
+    await registerAndSignIn({
+      name: fd.get("name"), email: fd.get("email"), password: fd.get("password"), favouriteTeamId: fd.get("favouriteTeamId"),
+    });
+  } catch (err) {
+    if (err instanceof LeagueError) return { error: err.message };
+    throw err;
+  }
+  redirect(safeNextPath(fd.get("next")));
+}
+
+export async function signOutAction() {
   await signOut();
   redirect("/");
+}
+
+/** Runs a change to the signed-in user's own account. */
+async function forSignedIn(fn: (u: users.User) => string): Promise<FormState> {
+  const me = await getCurrentUser();
+  if (!me) return { error: "Please sign in again." };
+  try {
+    const ok = fn(me);
+    revalidatePath("/", "layout");
+    return { ok };
+  } catch (err) {
+    if (err instanceof LeagueError) return { error: err.message };
+    throw err;
+  }
+}
+
+export async function updateProfileAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    users.updateProfile(getDb(), me.id, { name: fd.get("name"), favouriteTeamId: fd.get("favouriteTeamId") });
+    return "Profile saved.";
+  });
+}
+
+export async function changePasswordAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    if (str(fd, "newPassword") !== str(fd, "confirmPassword")) throw new LeagueError("The new passwords don't match.");
+    users.changePassword(getDb(), me.id, fd.get("currentPassword"), fd.get("newPassword"));
+    return "Password changed.";
+  });
+}
+
+export async function setUserRoleAction(_: FormState, fd: FormData): Promise<FormState> {
+  return forSignedIn((me) => {
+    const u = users.setRole(getDb(), me, id(fd, "userId"), fd.get("role"));
+    return `${u.name} is now ${u.role === "official" ? "an official" : "a fan"}.`;
+  });
 }
 
 // ---- Seasons ---------------------------------------------------------------

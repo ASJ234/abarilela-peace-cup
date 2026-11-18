@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { SiteFooter, SiteHeader } from "@/components/layout/SiteHeader";
-import { isOfficial } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 // League data changes whenever a result is entered, so always render fresh.
@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
-        <SiteHeader official={await isOfficial()} />
+        <SiteHeader user={await getCurrentUser()} />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:py-6">{children}</main>
         <SiteFooter />
       </body>

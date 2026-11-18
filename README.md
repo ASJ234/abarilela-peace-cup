@@ -21,6 +21,20 @@ Each season uses one of two formats, chosen when it's created (in **Settings**):
 Knockout or extra matches (e.g. "Semi-final", "Final") can be added to either format with a *stage*; they
 don't count toward the tables. The format can't be changed while league/group fixtures exist.
 
+### Home page
+
+The home page shows:
+
+- a welcome banner, and a spotlight on the next match with a live countdown;
+- your favourite team (position, points, form, last result, next match), for signed-in fans;
+- the season in numbers;
+- latest results and upcoming fixtures;
+- the top of the table, or the group leaders;
+- the Golden Boot and playmaker races;
+- the **Fair Play award** (fewest card points: yellow 1, red 3);
+- season records (biggest win, most goals in a match);
+- all competitions, with progress bars.
+
 ### Public site (anyone can view)
 
 | Page        | What it shows                                                                                                   |
@@ -53,6 +67,7 @@ don't count toward the tables. The format can't be changed while league/group fi
   - On each match's **Details** page you can record goals (with an optional assist), own goals,
     and yellow and red cards, each with an optional minute. A warning appears if the goals
     recorded don't add up to the score.
+- **Users & roles** (admin only): promote fans to officials or demote them.
 - **Settings:** points for a win, draw and loss (default 3/1/0), how many top places to highlight,
   and how many bottom places to mark.
 
@@ -70,25 +85,36 @@ Requires **Node.js 22.13 or newer**.
 
 ```bash
 npm install
-cp .env.example .env.local     # then set ADMIN_PASSWORD
+cp .env.example .env.local     # then put your email in ADMIN_EMAIL
 npm run dev                    # http://localhost:3000
 ```
 
-To explore with demo data (2 groups, 8 teams, 120 players, results with scorers and cards, and a
-final):
+Then click **Sign up** and create an account with the email you set as `ADMIN_EMAIL`. That account
+becomes the **admin**. If the account already exists, it becomes admin the next time you sign in.
+
+To explore with demo data (a home-and-away league and a group-stage cup with squads, results,
+scorers and cards):
 
 ```bash
 npm run seed
 ```
 
-Sign in via **Official sign in** in the top right with your `ADMIN_PASSWORD` (it is `admin` if you
-haven't set one).
+### Accounts and roles
+
+| Role         | How you get it                                    | Can                                                            |
+| ------------ | ------------------------------------------------- | -------------------------------------------------------------- |
+| **Fan**      | Anyone can sign up                                | Pick a favourite team (shown on the home page), manage account |
+| **Official** | The admin promotes a user on **Users & roles**    | Everything a fan can, plus manage seasons, teams, fixtures, results |
+| **Admin**    | Sign up or sign in with an `ADMIN_EMAIL` address  | Everything, plus promote or demote officials                   |
+
+Passwords are hashed with scrypt, and sessions are stored in the database as hashes and last 30 days.
+After 5 wrong passwords, an email is locked for 10 minutes. Demoting an official signs them out.
 
 ### Production
 
 ```bash
 npm run build
-ADMIN_PASSWORD=... npm start
+ADMIN_EMAIL=you@example.com npm start
 ```
 
 All data lives in one file, `data/league.db` (change it with `DB_FILE`). Back it up by copying that
@@ -122,7 +148,9 @@ src/
     players.ts           squads and player statistics
     schema.ts            versioned SQLite migrations
     validate.ts          input validation helpers, LeagueError
-    db.ts / auth.ts      database connection, official sign-in
+    users.ts             accounts, roles, password hashing, sessions
+    insights.ts          home-page numbers: records, fair play, a team's snapshot, upcoming matches
+    db.ts / auth.ts      database connection; sign-in cookies, current user, lock-out
 
   components/
     ui/                generic building blocks, no football knowledge (reuse anywhere)
@@ -134,12 +162,15 @@ src/
                          StandingsTable, MatchList, MatchDayList, Scoreline, MatchTag, EventList, StatTable, SeasonNav
     official/          official-panel features: TeamList, GroupManager, SquadEditor, DateEditor,
                          FixtureGenerator, MatchFields, ResultForm, EventForm, SeasonForm, LoginForm
-    layout/            site header and footer
+    home/              home page: Hero, Countdown, YourTeam, StatStrip, MiniTable, Podium, FairPlay, Records…
+    auth/              SignInForm, SignUpForm, AuthShell, favourite-team options
+    layout/            site header (with account menu) and footer
 
   app/                 routes only: fetch data, compose components
     actions.ts           server actions (every one checks the official is signed in)
     season/[id]/         public: table, fixtures, results, stats, teams, match pages
-    official/            sign-in, seasons, per-season tabs (teams & groups, schedule, matches, settings)
+    signin/ signup/ account/   accounts
+    official/            seasons, users & roles, per-season tabs (teams & groups, schedule, matches, settings)
 test/                  node:test suite
 scripts/seed.ts        demo data
 ```

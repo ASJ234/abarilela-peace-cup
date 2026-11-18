@@ -301,6 +301,7 @@ describe("formats", () => {
     db.exec("PRAGMA user_version = 2");
     // Simulate a v2 database: no format column yet.
     db.exec(`ALTER TABLE seasons DROP COLUMN format`);
+    db.exec(`DROP TABLE sessions; DROP TABLE users;`); // added by later migrations
     db.exec(`INSERT INTO seasons (name) VALUES ('Cup'), ('League')`);
     db.exec(`INSERT INTO league_groups (season_id, name) VALUES (1, 'Group A')`);
     migrate(db);

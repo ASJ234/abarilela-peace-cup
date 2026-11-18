@@ -288,3 +288,10 @@ export function setPlayingDates(db: DatabaseSync, seasonId: number, dates: strin
   });
   return unique;
 }
+
+/** All teams grouped by season (newest season first), for "favourite team" pickers. */
+export function listTeamChoices(db: DatabaseSync): { season: string; teams: { id: number; name: string }[] }[] {
+  return listSeasons(db)
+    .map((s) => ({ season: s.name, teams: listTeams(db, s.id).map(({ id, name }) => ({ id, name })) }))
+    .filter((s) => s.teams.length > 0);
+}

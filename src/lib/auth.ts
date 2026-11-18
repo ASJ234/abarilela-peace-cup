@@ -1,60 +1,90 @@
 import "server-only";
-import crypto from "node:crypto";
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
+import { getDb } from "./db";
+import {
+  SESSION_TTL_SECONDS, type User, authenticate, canManageLeague, createSession, deleteSession, sessionUser, signUp,
+} from "./users";
 
 const COOKIE = "apc_session";
-const TTL_SECONDS = 12 * 60 * 60; // 12 hours
 
-let warned = false;
-function adminPassword(): string {
-  const pw = process.env.ADMIN_PASSWORD;
-  if (pw) return pw;
-  if (!warned) {
-    console.warn('⚠  ADMIN_PASSWORD is not set; the official password is "admin". Set it in .env.local before going live.');
-    warned = true;
-  }
-  return "admin";
+/** Emails that become admin when they sign up or sign in (ADMIN_EMAIL, comma-separated). */
+export function adminEmails(): string[] {
+  return (process.env.ADMIN_EMAIL ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 }
 
-// Sessions are signed with a key derived from the password, so changing the
-// password signs every official out.
-function signingKey(): string {
-  return process.env.SESSION_SECRET || `apc-session:${adminPassword()}`;
-}
+/** The signed-in user for this request (looked up once per request). */
+export const getCurrentUser = cache(async (): Promise<User | null> => {
+  return sessionUser(getDb(), (await cookies()).get(COOKIE)?.value);
+});
 
-function sign(payload: string): string {
-  return crypto.createHmac("sha256", signingKey()).update(payload).digest("hex");
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const ha = crypto.createHash("sha256").update(a).digest();
-  const hb = crypto.createHash("sha256").update(b).digest();
-  return crypto.timingSafeEqual(ha, hb);
-}
-
+/** Officials and the admin can manage seasons, fixtures and results. */
 export async function isOfficial(): Promise<boolean> {
-  const token = (await cookies()).get(COOKIE)?.value;
-  if (!token) return false;
-  const [exp, sig] = token.split(".");
-  if (!exp || !sig || !safeEqual(sig, sign(exp))) return false;
-  return Number(exp) > Date.now() / 1000;
+  return canManageLeague(await getCurrentUser());
 }
 
-/** Returns true and sets the session cookie if the password is right. */
-export async function signIn(password: string): Promise<boolean> {
-  if (!safeEqual(password, adminPassword())) return false;
-  const exp = String(Math.floor(Date.now() / 1000) + TTL_SECONDS);
+export async function isAdmin(): Promise<boolean> {
+  return (await getCurrentUser())?.role === "admin";
+}
+
+async function startSession(userId: number) {
   const secure = (await headers()).get("x-forwarded-proto") === "https";
-  (await cookies()).set(COOKIE, `${exp}.${sign(exp)}`, {
+  (await cookies()).set(COOKIE, createSession(getDb(), userId), {
     httpOnly: true,
     sameSite: "lax",
     secure,
     path: "/",
-    maxAge: TTL_SECONDS,
+    maxAge: SESSION_TTL_SECONDS,
   });
-  return true;
+}
+
+// --- Slow down password guessing: 5 failures per email locks it for 10 minutes. ---
+const FAIL_LIMIT = 5;
+const LOCK_MS = 10 * 60 * 1000;
+const failures = new Map<string, { count: number; since: number }>();
+
+function lockedFor(email: string): number {
+  const f = failures.get(email);
+  if (!f || f.count < FAIL_LIMIT) return 0;
+  const left = f.since + LOCK_MS - Date.now();
+  if (left <= 0) { failures.delete(email); return 0; }
+  return Math.ceil(left / 60000);
+}
+
+function recordFailure(email: string) {
+  const f = failures.get(email);
+  if (!f || Date.now() - f.since > LOCK_MS) failures.set(email, { count: 1, since: Date.now() });
+  else f.count++;
+}
+
+export type AuthResult = { ok: true; user: User } | { ok: false; error: string };
+
+export async function signInWithPassword(email: string, password: string): Promise<AuthResult> {
+  const key = email.trim().toLowerCase();
+  const minutes = lockedFor(key);
+  if (minutes) return { ok: false, error: `Too many wrong attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.` };
+  const user = authenticate(getDb(), key, password, adminEmails());
+  if (!user) {
+    recordFailure(key);
+    return { ok: false, error: "Wrong email or password." };
+  }
+  failures.delete(key);
+  await startSession(user.id);
+  return { ok: true, user };
+}
+
+/** Creates the account (may throw LeagueError) and signs it in. */
+export async function registerAndSignIn(input: { name: unknown; email: unknown; password: unknown; favouriteTeamId?: unknown }) {
+  const user = signUp(getDb(), input, adminEmails());
+  await startSession(user.id);
+  return user;
 }
 
 export async function signOut(): Promise<void> {
-  (await cookies()).delete(COOKIE);
+  const jar = await cookies();
+  deleteSession(getDb(), jar.get(COOKIE)?.value);
+  jar.delete(COOKIE);
 }

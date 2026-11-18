@@ -24,3 +24,14 @@ export function groupBy<T, K>(items: T[], key: (t: T) => K): Array<[K, T[]]> {
   }
   return [...map.entries()];
 }
+
+/** A redirect target inside this site ("/official"), never another domain; defaults to "/". */
+export function safeNextPath(raw: unknown): string {
+  const next = typeof raw === "string" ? raw : "";
+  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+}
+
+/** "Joel Ariko" -> "JA" (for avatars). */
+export function initials(name: string): string {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+}
