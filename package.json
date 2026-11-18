@@ -1,0 +1,32 @@
+{
+  "name": "abarilela-peace-cup",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --no-warnings=ExperimentalWarning node_modules/next/dist/bin/next dev",
+    "build": "node --no-warnings=ExperimentalWarning node_modules/next/dist/bin/next build",
+    "start": "node --no-warnings=ExperimentalWarning node_modules/next/dist/bin/next start",
+    "lint": "eslint",
+    "test": "node --no-warnings=ExperimentalWarning --import tsx --test test/*.test.ts",
+    "seed": "node --no-warnings=ExperimentalWarning --import tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

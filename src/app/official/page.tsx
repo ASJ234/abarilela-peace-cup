@@ -1,0 +1,66 @@
+import type { Metadata } from "next";
+import { logoutAction } from "@/app/actions";
+import { LoginForm, SeasonForm } from "@/components/official";
+import { Button, EmptyState, LinkButton, PageHeader, Section } from "@/components/ui";
+import { isOfficial } from "@/lib/auth";
+import { getDb } from "@/lib/db";
+import { listGroups, listSeasons, listTeams } from "@/lib/league";
+import { fixtureCount, resultCount } from "@/lib/matches";
+import { FORMAT_LABEL } from "@/lib/types";
+
+export const metadata: Metadata = { title: "Official panel" };
+
+export default async function OfficialHome() {
+  if (!(await isOfficial())) return <LoginForm />;
+
+  const db = getDb();
+  const seasons = listSeasons(db).map((s) => ({
+    ...s,
+    teams: listTeams(db, s.id).length,
+    groups: listGroups(db, s.id).length,
+    fixtures: fixtureCount(db, s.id),
+    results: resultCount(db, s.id),
+  }));
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Official panel"
+        actions={
+          <form action={logoutAction}>
+            <Button variant="secondary">Sign out</Button>
+          </form>
+        }
+      />
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Seasons</h2>
+        {seasons.length === 0 ? (
+          <EmptyState icon="🏆">No seasons yet. Create the first one below.</EmptyState>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
+            {seasons.map((s) => (
+              <li key={s.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{s.name}</p>
+                  <p className="text-sm text-muted">
+                    {FORMAT_LABEL[s.format]} · {s.teams} teams{s.format === "groups" ? ` in ${s.groups} groups` : ""} · {s.fixtures} matches · {s.results} played
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:flex">
+                  <LinkButton href={`/season/${s.id}`}>View</LinkButton>
+                  <LinkButton href={`/official/season/${s.id}`}>Manage</LinkButton>
+                  <LinkButton href={`/official/season/${s.id}/matches`} variant="primary">Results</LinkButton>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <Section title="Create a new season">
+        <SeasonForm />
+      </Section>
+    </div>
+  );
+}
