@@ -341,12 +341,9 @@ export type EventInput = { type: unknown; teamId: unknown; playerId: unknown; as
 
 const MAX_MINUTE = 150;
 const MAX_ADDED = 30;
-/** Added time only follows the end of a half. */
-const ADDED_TIME_FROM = [45, 90];
 
 /**
- * Reads the minute an event happened: "37", or "90+3" / "45 + 2" for added time
- * (only after 45 or 90, where each half ends).
+ * Reads the minute an event happened: "37", or "90+3" / "45 + 2" for added time.
  * Blank means unknown. Returns the base minute and the added minutes (null if none).
  */
 export function parseMinute(value: unknown): { minute: number | null; addedMinute: number | null } {
@@ -356,9 +353,6 @@ export function parseMinute(value: unknown): { minute: number | null; addedMinut
   const minute = Number(m[1]);
   if (minute > MAX_MINUTE) throw new LeagueError(`Minute must be between 0 and ${MAX_MINUTE}.`);
   if (m[2] == null) return { minute, addedMinute: null };
-  if (!ADDED_TIME_FROM.includes(minute)) {
-    throw new LeagueError(`Added time comes after 45 or 90 minutes, e.g. 45+2 or 90+3, not ${minute}+${m[2]}.`);
-  }
   const added = Number(m[2]);
   if (added < 1 || added > MAX_ADDED) throw new LeagueError(`Added time must be between 1 and ${MAX_ADDED} minutes.`);
   return { minute, addedMinute: added };

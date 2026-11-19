@@ -439,8 +439,7 @@ describe("players, events and stats", () => {
     assert.throws(() => matches.parseMinute("ninety"), /90\+3 for added time/);
     assert.throws(() => matches.parseMinute("90+0"), /Added time/);
     assert.throws(() => matches.parseMinute("90+45"), /Added time/);
-    assert.throws(() => matches.parseMinute("35+2"), /after 45 or 90/);
-    assert.throws(() => matches.parseMinute("89+1"), /after 45 or 90/);
+    assert.deepEqual(matches.parseMinute("30+2"), { minute: 30, addedMinute: 2 }); // any minute may have added time
 
     const goal = (minute: string) =>
       matches.addEvent(db, matchId, { type: "goal", teamId: t.Lions, playerId: p["John Okello"], minute });
