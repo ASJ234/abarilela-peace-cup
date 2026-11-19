@@ -44,7 +44,7 @@ export default async function Home() {
     <div className="space-y-6">
       <Hero season={featured} nextMatch={next} signedIn={!!me} name={me?.name} />
 
-      <YourTeam snapshot={snapshot} signedIn={!!me} />
+      {me && <YourTeam snapshot={snapshot} />}
 
       <StatStrip n={await seasonNumbers(db, featured.id)} />
 

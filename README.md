@@ -26,13 +26,13 @@ don't count toward the tables. The format can't be changed while league/group fi
 **Which season is featured:** the season the admin pins (Settings → *Home page* → *Pin to the
 home page*). If none is pinned, the season with the **soonest upcoming match** is chosen. If no
 matches are upcoming, it's the season with the most recent result, or else the newest season. So
-creating next year's season early doesn't replace the one still being played. A fan's ⭐ *Your
-team* card always uses their team's own season, and *All competitions* lists every season.
+creating next year's season early doesn't replace the one still being played. A signed-in user's ⭐
+*Your team* card always uses their team's own season, and *All competitions* lists every season.
 
 The home page shows:
 
 - a welcome banner, and a spotlight on the next match with a live countdown;
-- your favourite team (position, points, form, last result, next match), for signed-in fans;
+- your favourite team (position, points, form, last result, next match), for signed-in users;
 - the season in numbers;
 - latest results and upcoming fixtures;
 - the top of the table, or the group leaders;
@@ -41,7 +41,10 @@ The home page shows:
 - season records (biggest win, most goals in a match);
 - all competitions, with progress bars.
 
-### Public site (anyone can view)
+### Public site (anyone can view, no account needed)
+
+There's no sign-up: visitors just view the site. Only people the admin creates accounts for
+(officials, and any fans the admin adds) can sign in.
 
 | Page        | What it shows                                                                                                   |
 | ----------- | --------------------------------------------------------------------------------------------------------------- |
@@ -53,6 +56,13 @@ The home page shows:
 | **Match**   | Score, date, venue, and a timeline of goals (with assists), own goals and cards.                                 |
 
 ### Official panel (`/official`, password protected)
+
+- **Seasons** (admin only): only the admin can create or delete a season.
+- **Season officials** (admin only): in each season's **Settings → Officials**, the admin adds the
+  officials who run that season, or removes them. An official sees **only the seasons they've been
+  added to** in the panel, and can only change things in those seasons (teams, groups, squads,
+  schedule, matches, results, events and season settings). Every change is checked on the server,
+  not just hidden in the page. An official who hasn't been added to any season sees an empty panel.
 
 - **Teams & groups:** add, rename and remove teams. Create groups (e.g. "4 groups" → Group A to D, or
   your own names), assign teams to groups one by one or with a **random draw**, and open each team's
@@ -79,7 +89,9 @@ The home page shows:
   - **Edit** username, display name, role or favourite team, and **set a new password** (the
     user is signed out everywhere).
   - **Delete** an account (with confirmation).
-  - Demoting or deleting an official ends their access at once. The admin account itself can't
+  - Each official's seasons are listed under their name.
+  - Demoting or deleting an official ends their access at once and takes them off every season
+    (promoting them again doesn't give the seasons back). The admin account itself can't
     be edited or deleted here; it's managed on the Account page and with `npm run admin`.
 - **Settings:** points for a win, draw and loss (default 3/1/0), how many top places to highlight,
   and how many bottom places to mark.
@@ -134,9 +146,10 @@ npm run seed
 
 | Role         | How you get it                                    | Can                                                            |
 | ------------ | ------------------------------------------------- | -------------------------------------------------------------- |
-| **Fan**      | Anyone can sign up with a username and password   | Pick a favourite team (shown on the home page), manage account |
-| **Official** | The admin promotes a user on **Users & roles**    | Everything a fan can, plus manage seasons, teams, fixtures, results |
-| **Admin**    | Exactly one, set on the server with `npm run admin` | Everything, plus promote or demote officials                 |
+| *Visitor*    | No account                                        | View every public page                                         |
+| **Fan**      | The admin creates the account on **Users & roles** (there's no public sign-up) | Pick a favourite team (shown on the home page), manage account |
+| **Official** | The admin creates or promotes the account, then adds it to seasons | Manage the teams, fixtures, results and settings of **their** seasons only |
+| **Admin**    | Exactly one, set on the server with `npm run admin` | Everything: create and delete seasons, add officials to seasons, manage users |
 
 Accounts use a **username** (3–30 letters, numbers, dots, dashes or underscores; capitals don't
 matter) and a password of at least 8 characters. No email is collected. Passwords are hashed with
@@ -202,6 +215,7 @@ src/
     sql.ts / pg.ts       small async database interface (`?` placeholders, transactions); pg pool for Supabase
     validate.ts          input validation helpers, LeagueError
     users.ts             accounts, roles, password hashing, sessions
+    officials.ts         which officials manage which season; finds the season a record belongs to
     insights.ts          home-page numbers: records, fair play, a team's snapshot, upcoming matches
     db.ts / auth.ts      the app's shared connection; sign-in cookies, current user, lock-out
 
@@ -215,15 +229,15 @@ src/
                          StandingsTable, MatchList, MatchDayList, Scoreline, MatchTag, EventList, StatTable, SeasonNav
     admin/             admin-only user management: UserDirectory (search, edit dialog, delete), AddUserForm, UserFields
     official/          official-panel features: TeamList, GroupManager, SquadEditor, DateEditor,
-                         FixtureGenerator, MatchFields, ResultForm, EventForm, SeasonForm, LoginForm
+                         FixtureGenerator, MatchFields, ResultForm, EventForm, SeasonForm, SeasonOfficials
     home/              home page: Hero, Countdown, YourTeam, StatStrip, MiniTable, Podium, FairPlay, Records…
-    auth/              SignInForm, SignUpForm, AuthShell, favourite-team options
+    auth/              SignInForm, AuthShell, favourite-team options
     layout/            site header (with account menu) and footer
 
   app/                 routes only: fetch data, compose components
-    actions.ts           server actions (every one checks the official is signed in)
+    actions.ts           server actions (each checks the user may manage that season, or is the admin)
     season/[id]/         public: table, fixtures, results, stats, teams, match pages
-    signin/ signup/ account/   accounts
+    signin/ account/     accounts
     official/            seasons, users & roles, per-season tabs (teams & groups, schedule, matches, settings)
 supabase/
   migrations/          the schema as SQL files, run in the Supabase SQL Editor in name order

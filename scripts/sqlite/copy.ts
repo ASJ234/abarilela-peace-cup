@@ -28,6 +28,11 @@ export async function copySqliteToPostgres(sqlite: DatabaseSync, db: Db): Promis
 
     const result = {} as CopyResult;
     for (const table of TABLES) {
+      // Tables added after the move to Postgres (e.g. season_officials) aren't in the SQLite file.
+      if (!sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table)) {
+        result[table] = 0;
+        continue;
+      }
       const rows = sqlite.prepare(`SELECT * FROM ${table}`).all() as Record<string, unknown>[];
       result[table] = rows.length;
       if (!rows.length) continue;

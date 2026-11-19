@@ -19,7 +19,18 @@ const ROLE: Record<ManagedUser["role"], { label: string; tone: "brand" | "succes
  * Searchable list of every account, grouped by role, with Edit (dialog) and
  * Delete for everyone except the admin.
  */
-export function UserDirectory({ users, meId, teams }: { users: ManagedUser[]; meId: number; teams: TeamChoices }) {
+export function UserDirectory({
+  users,
+  meId,
+  teams,
+  seasons,
+}: {
+  users: ManagedUser[];
+  meId: number;
+  teams: TeamChoices;
+  /** Each official's seasons (user id → season names). */
+  seasons: Record<number, string[]>;
+}) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const teamName = useMemo(() => new Map(teams.flatMap((s) => s.teams.map((t) => [t.id, t.name] as const))), [teams]);
@@ -59,6 +70,11 @@ export function UserDirectory({ users, meId, teams }: { users: ManagedUser[]; me
                     @{u.username}
                     {u.favouriteTeamId != null && teamName.get(u.favouriteTeamId) && <> · ⭐ {teamName.get(u.favouriteTeamId)}</>}
                   </span>
+                  {u.role === "official" && (
+                    <span className="block text-sm text-muted">
+                      🏆 {seasons[u.id]?.length ? seasons[u.id].join(", ") : "No seasons yet (add them in a season's Settings)"}
+                    </span>
+                  )}
                 </span>
                 {u.role === "admin" ? (
                   <Link href="/account" className="text-sm font-semibold text-brand hover:underline">Your account →</Link>

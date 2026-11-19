@@ -3,6 +3,7 @@ import { AddUserForm, UserDirectory } from "@/components/admin";
 import { Collapsible, PageHeader, Section } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { listTeamChoices } from "@/lib/league";
+import { seasonsByOfficial } from "@/lib/officials";
 import { listUsers } from "@/lib/users";
 import { requireAdmin } from "../access";
 
@@ -13,6 +14,7 @@ export default async function UsersPage() {
   const db = getDb();
   const users = await listUsers(db);
   const teams = await listTeamChoices(db);
+  const seasons = Object.fromEntries(await seasonsByOfficial(db));
   const officials = users.filter((u) => u.role === "official").length;
   const fans = users.filter((u) => u.role === "fan").length;
 
@@ -33,9 +35,9 @@ export default async function UsersPage() {
 
       <Section
         title="All users"
-        description="Fans follow a team. Officials manage seasons, teams, fixtures and results. There is one admin."
+        description="Officials manage the seasons you add them to (in each season's Settings). Fans follow a team. There is one admin."
       >
-        <UserDirectory users={users} meId={me.id} teams={teams} />
+        <UserDirectory users={users} meId={me.id} teams={teams} seasons={seasons} />
       </Section>
     </div>
   );

@@ -9,5 +9,6 @@ export { MatchFields } from "./MatchFields";
 export { OfficialSeasonNav } from "./OfficialSeasonNav";
 export { ResultForm } from "./ResultForm";
 export { SeasonForm } from "./SeasonForm";
+export { SeasonOfficials } from "./SeasonOfficials";
 export { AddPlayersForm, SquadEditor } from "./SquadEditor";
 export { TeamList } from "./TeamList";

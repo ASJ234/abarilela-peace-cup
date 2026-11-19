@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { countsFor, featuredSeason, seasonCounts } from "@/lib/insights";
 import { listSeasons } from "@/lib/league";
+import { managedSeasonIds } from "@/lib/officials";
 import { FORMAT_LABEL } from "@/lib/types";
 import { canManageLeague } from "@/lib/users";
 
@@ -30,7 +31,9 @@ export default async function OfficialHome() {
   }
 
   const db = getDb();
-  const [list, counts] = await Promise.all([listSeasons(db), seasonCounts(db)]);
+  const isAdmin = me.role === "admin";
+  const [all, counts, mine] = await Promise.all([listSeasons(db), seasonCounts(db), managedSeasonIds(db, me)]);
+  const list = mine === "all" ? all : all.filter((s) => mine.has(s.id));
   const seasons = list.map((s) => {
     const n = countsFor(counts, s.id);
     return { ...s, teams: n.teams, groups: n.groups, fixtures: n.matches, results: n.played };
@@ -43,13 +46,17 @@ export default async function OfficialHome() {
       <PageHeader
         title="Official panel"
         subtitle={`Signed in as ${me.name}`}
-        actions={me.role === "admin" ? <LinkButton href="/official/users">👥 Users &amp; roles</LinkButton> : undefined}
+        actions={isAdmin ? <LinkButton href="/official/users">👥 Users &amp; roles</LinkButton> : undefined}
       />
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Seasons</h2>
+        <h2 className="mb-3 text-lg font-semibold">{isAdmin ? "Seasons" : "Your seasons"}</h2>
         {seasons.length === 0 ? (
-          <EmptyState icon="🏆">No seasons yet. Create the first one below.</EmptyState>
+          <EmptyState icon="🏆">
+            {isAdmin
+              ? "No seasons yet. Create the first one below."
+              : "The admin hasn't added you to a season yet. Once they do, it will appear here."}
+          </EmptyState>
         ) : (
           <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
             {seasons.map((s) => (
@@ -76,9 +83,14 @@ export default async function OfficialHome() {
         )}
       </section>
 
-      <Section title="Create a new season">
-        <SeasonForm />
-      </Section>
+      {isAdmin && (
+        <Section
+          title="Create a new season"
+          description="After creating it, add the officials who will run it under Settings → Officials."
+        >
+          <SeasonForm />
+        </Section>
+      )}
     </div>
   );
 }

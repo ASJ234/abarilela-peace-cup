@@ -194,21 +194,19 @@ export function Records({ records, seasonId }: { records: SeasonRecords; seasonI
 
 // ---------------------------------------------------------------------------
 
-/** Personal card for a fan's favourite team, or an invitation to pick one / sign up. */
-export function YourTeam({ snapshot, signedIn }: { snapshot: TeamSnapshot | null; signedIn: boolean }) {
+/** Personal card for a signed-in user's favourite team, or an invitation to pick one. */
+export function YourTeam({ snapshot }: { snapshot: TeamSnapshot | null }) {
   if (!snapshot) {
     return (
       <Card className="flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
-          <p className="font-bold">⭐ {signedIn ? "Pick your favourite team" : "Follow your team"}</p>
+          <p className="font-bold">⭐ Pick your favourite team</p>
           <p className="text-sm text-muted">
-            {signedIn
-              ? "Choose a team in your account and its next match, position and form will appear right here."
-              : "Create a free account to see your team's next match, position and form every time you visit."}
+            Choose a team in your account and its next match, position and form will appear right here.
           </p>
         </div>
-        <LinkButton href={signedIn ? "/account" : "/signup"} variant="primary" className="shrink-0">
-          {signedIn ? "Choose team" : "Sign up free"}
+        <LinkButton href="/account" variant="primary" className="shrink-0">
+          Choose team
         </LinkButton>
       </Card>
     );
@@ -321,7 +319,7 @@ export function About() {
       {[
         { icon: "🕊️", title: "Peace through play", text: "The Peace Cup brings villages, clans and generations onto one pitch. Rivals on the field, neighbours off it." },
         { icon: "🤝", title: "Fair play first", text: "Every card counts in our Fair Play race. The most sporting team is celebrated alongside the champions." },
-        { icon: "🌱", title: "For the community", text: "Run by local officials and volunteers, open to every fan. Sign up, follow your team and cheer them on." },
+        { icon: "🌱", title: "For the community", text: "Run by local officials and volunteers, open to every fan. Follow the tables, fixtures and results, and cheer your team on." },
       ].map((x) => (
         <div key={x.title}>
           <p aria-hidden className="text-2xl">{x.icon}</p>

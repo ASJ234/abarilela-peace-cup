@@ -10,7 +10,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const next = safeNextPath((await searchParams).next);
   if (await getCurrentUser()) redirect(next);
   return (
-    <AuthShell title="Welcome back" subtitle="Sign in with your username to follow your team, or to manage the league if you're an official.">
+    <AuthShell title="Officials sign in" subtitle="For the admin and match officials. Everyone else can view the whole site without an account.">
       <SignInForm next={next} />
     </AuthShell>
   );

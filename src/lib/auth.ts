@@ -3,8 +3,7 @@ import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { getDb } from "./db";
 import {
-  SESSION_TTL_SECONDS, type User, authenticate, canManageLeague, createSession, deleteSession, normaliseUsername, sessionUser,
-  signUp,
+  SESSION_TTL_SECONDS, type User, authenticate, createSession, deleteSession, normaliseUsername, sessionUser,
 } from "./users";
 
 const COOKIE = "apc_session";
@@ -13,15 +12,6 @@ const COOKIE = "apc_session";
 export const getCurrentUser = cache(async (): Promise<User | null> => {
   return await sessionUser(getDb(), (await cookies()).get(COOKIE)?.value);
 });
-
-/** Officials and the admin can manage seasons, fixtures and results. */
-export async function isOfficial(): Promise<boolean> {
-  return canManageLeague(await getCurrentUser());
-}
-
-export async function isAdmin(): Promise<boolean> {
-  return (await getCurrentUser())?.role === "admin";
-}
 
 async function startSession(userId: number) {
   const secure = (await headers()).get("x-forwarded-proto") === "https";
@@ -68,13 +58,6 @@ export async function signInWithPassword(username: string, password: string): Pr
   failures.delete(key);
   await startSession(user.id);
   return { ok: true, user };
-}
-
-/** Creates the account (may throw LeagueError) and signs it in. */
-export async function registerAndSignIn(input: { username: unknown; password: unknown; name?: unknown; favouriteTeamId?: unknown }) {
-  const user = await signUp(getDb(), input);
-  await startSession(user.id);
-  return user;
 }
 
 export async function signOut(): Promise<void> {

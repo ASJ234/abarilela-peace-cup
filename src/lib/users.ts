@@ -88,7 +88,10 @@ async function teamExists(db: Db, teamId: number): Promise<boolean> {
   return Boolean(await db.get("SELECT 1 FROM teams WHERE id = ?", [teamId]));
 }
 
-/** New accounts are fans. The display name defaults to the username. */
+/**
+ * Creates a fan account (the display name defaults to the username). There's no public
+ * sign-up; the admin creates accounts through adminCreateUser.
+ */
 export async function signUp(
   db: Db,
   input: { username: unknown; password: unknown; name?: unknown; favouriteTeamId?: unknown },
@@ -243,8 +246,11 @@ export async function adminUpdateUser(db: Db, acting: User, userId: number, inpu
       "UPDATE users SET username = ?, name = ?, role = ?, favourite_team_id = ? WHERE id = ? RETURNING *",
       [username, name, role, teamId, userId],
     );
-    // Losing official access takes effect straight away.
-    if (target.role === "official" && role === "fan") await t.run("DELETE FROM sessions WHERE user_id = ?", [userId]);
+    // Losing official access takes effect straight away, and their seasons go with it.
+    if (target.role === "official" && role === "fan") {
+      await t.run("DELETE FROM sessions WHERE user_id = ?", [userId]);
+      await t.run("DELETE FROM season_officials WHERE user_id = ?", [userId]);
+    }
     return toUser(r!);
   });
 }

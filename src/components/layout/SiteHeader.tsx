@@ -26,14 +26,9 @@ export function SiteHeader({ user }: { user: User | null }) {
           />
         ) : (
           <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {/* For officials and the admin; visitors don't need an account to view the site. */}
             <Link href="/signin" className="flex min-h-10 items-center rounded-full px-3 text-sm font-medium hover:bg-white/10">
               Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="flex min-h-10 items-center rounded-full bg-white px-4 text-sm font-semibold text-[var(--brand)] hover:opacity-90"
-            >
-              Sign up
             </Link>
           </nav>
         )}

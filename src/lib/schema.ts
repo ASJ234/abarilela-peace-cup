@@ -9,6 +9,7 @@ import type { Db } from "./sql";
 /** Tables in the order data must be inserted (parents before children). */
 export const TABLES = [
   "seasons", "league_groups", "teams", "playing_dates", "matches", "players", "match_events", "users", "sessions",
+  "season_officials",
 ] as const;
 
 /**

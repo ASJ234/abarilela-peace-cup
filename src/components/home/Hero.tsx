@@ -43,7 +43,6 @@ export function Hero({
                 <HeroLink href={`/season/${season.id}/fixtures`}>Fixtures</HeroLink>
               </>
             ) : null}
-            {!signedIn && <HeroLink href="/signup">Follow your team →</HeroLink>}
           </div>
         </div>
 

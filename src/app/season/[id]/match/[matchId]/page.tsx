@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { EventList, MatchMeta, Scoreline } from "@/components/league";
 import { Card, LinkButton, Section } from "@/components/ui";
-import { isOfficial } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
+import { canManageSeason } from "@/lib/officials";
 import { getDb } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { getMatch, listEvents } from "@/lib/matches";
@@ -43,7 +44,7 @@ export default async function MatchPage({ params }: Props) {
         </Section>
       )}
 
-      {(await isOfficial()) && (
+      {(await canManageSeason(getDb(), await getCurrentUser(), season.id)) && (
         <LinkButton href={`/official/season/${season.id}/matches/${m.id}`}>Edit this match (official)</LinkButton>
       )}
     </div>

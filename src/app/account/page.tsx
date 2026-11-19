@@ -32,7 +32,7 @@ export default async function AccountPage() {
       />
 
       {canManageLeague(me) && (
-        <Section title="Official tools" description="You can manage seasons, teams, fixtures and results.">
+        <Section title="Official tools" description={me.role === "admin" ? "You can manage every season, its officials, and users." : "You can manage the seasons the admin has added you to."}>
           <LinkButton href="/official" variant="primary">Open the official panel</LinkButton>
         </Section>
       )}
