@@ -98,6 +98,14 @@ describe("penalties, coaches' cards and referees", () => {
     assert.equal(head, "%PDF-");
     assert.equal((await PDFDocument.load(bytes)).getPageCount(), 2, "long lists continue on a second page");
     assert.equal(pdfSafe("Lions ⚽ Ünited – Ōkello"), "Lions ? Ünited – Okello");
+
+    // Every team's fixtures: 12 teams with 2 matches each share pages instead of one page each.
+    const twelve = Array.from({ length: 12 }, (_, i) => ({
+      teamId: lions.id, team: { name: `Team ${i + 1}`, coach: null }, groupName: "Group A", matches: ms.slice(0, 1).concat(ms.slice(0, 1)),
+    }));
+    const all = await PDFDocument.load(await fixturesPdf({ seasonName: "Cup 2026", generatedOn: "today", teams: twelve }));
+    assert.ok(all.getPageCount() <= 4, `${all.getPageCount()} pages`);
+    assert.equal(all.getTitle(), "Cup 2026 fixtures by team");
   });
 });
 

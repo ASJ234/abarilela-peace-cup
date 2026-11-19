@@ -3,8 +3,9 @@ import { formatDate } from "./format";
 import type { Match } from "./types";
 
 /**
- * Fixture lists as a printable PDF (A4 landscape): one section per team, each starting
- * on a new page, with its matches in date order. Uses the PDF built-in Helvetica, so
+ * Fixture lists as a printable PDF (A4 landscape): one section per team, with its matches
+ * in date order. With several teams, the first page lists them all and the sections follow
+ * one another, a team moving to the next page only when it won't fit. Uses the PDF built-in Helvetica, so
  * text outside its character set (e.g. emoji) is simplified or replaced.
  */
 
@@ -119,34 +120,88 @@ export async function fixturesPdf(input: { seasonName: string; teams: TeamFixtur
     return y - ROW_H;
   };
 
-  for (const t of input.teams) {
-    let page = doc.addPage(PAGE);
-    const played = t.matches.filter((m) => m.played).length;
+  /** Splits text into lines that fit `maxWidth`. */
+  const wrap = (s: string, f: PDFFont, size: number, maxWidth: number) => {
+    const lines: string[] = [];
+    let line = "";
+    for (const word of pdfSafe(s).split(" ")) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && f.widthOfTextAtSize(next, size) > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
 
-    const pageTop = (p: PDFPage, continued: boolean) => {
-      let y = height - MARGIN - 4;
-      text(p, "ABARILELA PEACE CUP", MARGIN, y, { font: bold, size: 9, color: BRAND });
-      text(p, input.seasonName, MARGIN + 130, y, { size: 9, color: MUTED, maxWidth: width - 2 * MARGIN - 130 });
-      y -= 26;
-      text(p, `${t.team.name}${continued ? " (continued)" : ""}`, MARGIN, y, { font: bold, size: 20, maxWidth: width - 2 * MARGIN });
-      y -= 18;
+  const many = input.teams.length > 1;
+  const bottom = MARGIN + 12; // keep clear of the footer
+  let page!: PDFPage;
+  let y = 0;
+  let atTop = true;
+
+  /** A new page with the running header. */
+  const newPage = () => {
+    page = doc.addPage(PAGE);
+    y = height - MARGIN - 4;
+    text(page, "ABARILELA PEACE CUP", MARGIN, y, { font: bold, size: 9, color: BRAND });
+    text(page, input.seasonName, MARGIN + 130, y, { size: 9, color: MUTED, maxWidth: width - 2 * MARGIN - 130 });
+    y -= 30;
+    atTop = true;
+  };
+  newPage();
+
+  if (many) {
+    // Title and the list of teams inside, so it's clear the whole season is here.
+    text(page, `${input.seasonName}: fixtures by team`, MARGIN, y, { font: bold, size: 20, maxWidth: width - 2 * MARGIN });
+    y -= 18;
+    const list = `${input.teams.length} teams: ${input.teams.map((t) => t.team.name).join(", ")}.`;
+    for (const line of wrap(list, font, 9.5, width - 2 * MARGIN)) {
+      text(page, line, MARGIN, y, { size: 9.5, color: MUTED });
+      y -= 13;
+    }
+    y -= 14;
+    atTop = false;
+  }
+
+  const teamTitleSize = many ? 15 : 20;
+  const teamHeading = (t: TeamFixtures, continued: boolean) => {
+    const played = t.matches.filter((m) => m.played).length;
+    text(page, `${t.team.name}${continued ? " (continued)" : ""}`, MARGIN, y, { font: bold, size: teamTitleSize, maxWidth: width - 2 * MARGIN });
+    y -= many ? 14 : 18;
+    if (!continued) {
       const sub = [
         t.groupName,
         t.team.coach ? `Coach: ${t.team.coach}` : null,
         `${t.matches.length} match${t.matches.length === 1 ? "" : "es"} · ${played} played`,
       ].filter(Boolean).join("   ·   ");
-      text(p, sub, MARGIN, y, { size: 10, color: MUTED, maxWidth: width - 2 * MARGIN });
-      return y - 28;
-    };
+      text(page, sub, MARGIN, y, { size: 9.5, color: MUTED, maxWidth: width - 2 * MARGIN });
+      y -= 22;
+    } else {
+      y -= 8;
+    }
+    y = tableHeader(page, y);
+  };
 
-    let y = tableHeader(page, pageTop(page, false));
+  for (const t of input.teams) {
+    // Start the team on this page if its heading and at least a few rows fit; otherwise turn over.
+    const headingHeight = (many ? 14 : 18) + 22 + ROW_H;
+    const firstRows = Math.min(Math.max(t.matches.length, 1), 3) * ROW_H;
+    if (!atTop) y -= 10;
+    if (y - headingHeight - firstRows < bottom) newPage();
+    atTop = false;
+    teamHeading(t, false);
+
     if (t.matches.length === 0) {
       text(page, "No matches scheduled yet.", MARGIN + 5, y, { color: MUTED });
+      y -= ROW_H;
     }
     t.matches.forEach((m, i) => {
-      if (y < MARGIN + 30) {
-        page = doc.addPage(PAGE);
-        y = tableHeader(page, pageTop(page, true));
+      if (y - ROW_H < bottom) {
+        newPage();
+        atTop = false;
+        teamHeading(t, true);
       }
       if (i % 2 === 1) page.drawRectangle({ x: MARGIN, y: y - 6, width: tableWidth, height: ROW_H, color: ZEBRA });
       page.drawLine({ start: { x: MARGIN, y: y - 6 }, end: { x: MARGIN + tableWidth, y: y - 6 }, thickness: 0.5, color: LINE });
@@ -159,6 +214,7 @@ export async function fixturesPdf(input: { seasonName: string; teams: TeamFixtur
       }
       y -= ROW_H;
     });
+    y -= 8;
   }
 
   // Footer on every page: when it was made, and page numbers.

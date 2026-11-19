@@ -86,7 +86,7 @@ There's no sign-up: visitors just view the site. Only people the admin creates a
 | Page        | What it shows                                                                                                   |
 | ----------- | --------------------------------------------------------------------------------------------------------------- |
 | **Table**   | One league table, or one table per group. P, W, D, L, GF, GA, GD, Pts and last-5 form. Top N highlighted (default 4), optional bottom zone. Every column is always shown: on phones the table scrolls sideways with the position and team pinned on the left. |
-| **Fixtures**| Upcoming matches by date with kick-off time, venue and group/stage, plus a **PDF of every team's fixtures** (one team per page). |
+| **Fixtures**| Upcoming matches by date with kick-off time, venue and group/stage, plus a **PDF of every team's fixtures** (all teams, ordered by group, listed on the first page). |
 | **Results** | Played matches, newest first.                                                                                    |
 | **Stats**   | Top scorers (with penalties), top assists, red cards, a full discipline table (yellow and red cards), and coaches' cards. |
 | **Teams**   | Every team (by group) → coach, squad with shirt numbers, positions and each player's goals, assists and cards, plus the team's matches and a **fixtures PDF** to download or print. |

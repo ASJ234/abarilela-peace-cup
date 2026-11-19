@@ -7,7 +7,7 @@ import { fixturesPdf } from "@/lib/pdf";
 const slug = (s: string) => s.normalize("NFKD").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "fixtures";
 
 /**
- * A team's fixtures (or, with no team, every team's, one after another) as a PDF
+ * A team's fixtures (or, with no team, every team's, ordered by group) as a PDF
  * download. Public, like the rest of the season pages.
  */
 export async function fixturesPdfResponse(seasonIdRaw: string, teamIdRaw?: string): Promise<Response> {
@@ -19,7 +19,13 @@ export async function fixturesPdfResponse(seasonIdRaw: string, teamIdRaw?: strin
   const teams = teamIdRaw == null ? allTeams : allTeams.filter((t) => t.id === Number(teamIdRaw));
   if (teamIdRaw != null && teams.length === 0) return new Response("Team not found", { status: 404 });
 
-  const groupName = new Map((await listGroups(db, season.id)).map((g) => [g.id, g.name]));
+  const groups = await listGroups(db, season.id); // in name order: Group A, Group B…
+  const groupName = new Map(groups.map((g) => [g.id, g.name]));
+  // Group by group (teams without a group last), then by name.
+  if (season.format === "groups") {
+    const order = new Map(groups.map((g, i) => [g.id, i]));
+    teams.sort((a, b) => (order.get(a.groupId ?? -1) ?? groups.length) - (order.get(b.groupId ?? -1) ?? groups.length));
+  }
   const matches = await listMatches(db, season.id);
   const bytes = await fixturesPdf({
     seasonName: season.name,
