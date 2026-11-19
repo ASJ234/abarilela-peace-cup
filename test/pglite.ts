@@ -1,6 +1,7 @@
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { citext } from "@electric-sql/pglite/contrib/citext";
-import { TABLES, applyMigrations } from "../src/lib/schema";
+import { TABLES } from "../src/lib/schema";
+import { applyMigrations } from "./migrations";
 import { type Db, type Row, inTransaction, makeDb } from "../src/lib/sql";
 
 type Conn = Pick<PGlite | Transaction, "query" | "exec">;
