@@ -128,6 +128,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE seasons ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1));
   CREATE UNIQUE INDEX idx_seasons_single_pin ON seasons(pinned) WHERE pinned = 1;
   `,
+
+  // 8: added (stoppage) time on match events, e.g. a goal in 90+3 is minute 90, added_minute 3.
+  `
+  ALTER TABLE match_events ADD COLUMN added_minute INTEGER;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): void {

@@ -70,6 +70,8 @@ export type MatchEvent = {
   player: { id: number; name: string; number: number | null };
   assist: { id: number; name: string } | null;
   minute: number | null;
+  /** Added (stoppage) time: 3 for a goal in 90+3. Only set together with `minute`. */
+  addedMinute: number | null;
 };
 
 export type FormResult = "W" | "D" | "L";

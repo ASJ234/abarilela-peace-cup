@@ -326,7 +326,7 @@ export function listEvents(db: DatabaseSync, matchId: number): MatchEvent[] {
        JOIN players p ON p.id = e.player_id
        LEFT JOIN players ap ON ap.id = e.assist_player_id
        WHERE e.match_id = ?
-       ORDER BY e.minute IS NULL, e.minute, e.id`,
+       ORDER BY e.minute IS NULL, e.minute, COALESCE(e.added_minute, 0), e.id`,
     )
     .all(matchId)
     .map((r) => ({
@@ -337,10 +337,36 @@ export function listEvents(db: DatabaseSync, matchId: number): MatchEvent[] {
       player: { id: Number(r.player_id), name: String(r.player_name), number: r.player_number == null ? null : Number(r.player_number) },
       assist: r.assist_player_id == null ? null : { id: Number(r.assist_player_id), name: String(r.assist_name) },
       minute: r.minute == null ? null : Number(r.minute),
+      addedMinute: r.added_minute == null ? null : Number(r.added_minute),
     }));
 }
 
 export type EventInput = { type: unknown; teamId: unknown; playerId: unknown; assistId?: unknown; minute?: unknown };
+
+const MAX_MINUTE = 150;
+const MAX_ADDED = 30;
+/** Added time only follows the end of a half. */
+const ADDED_TIME_FROM = [45, 90];
+
+/**
+ * Reads the minute an event happened: "37", or "90+3" / "45 + 2" for added time
+ * (only after 45 or 90, where each half ends).
+ * Blank means unknown. Returns the base minute and the added minutes (null if none).
+ */
+export function parseMinute(value: unknown): { minute: number | null; addedMinute: number | null } {
+  if (isBlank(value)) return { minute: null, addedMinute: null };
+  const m = /^(\d{1,3})\s*(?:\+\s*(\d{1,2}))?\s*'?$/.exec(String(value).trim());
+  if (!m) throw new LeagueError("Minute must be a number like 37, or 90+3 for added time.");
+  const minute = Number(m[1]);
+  if (minute > MAX_MINUTE) throw new LeagueError(`Minute must be between 0 and ${MAX_MINUTE}.`);
+  if (m[2] == null) return { minute, addedMinute: null };
+  if (!ADDED_TIME_FROM.includes(minute)) {
+    throw new LeagueError(`Added time comes after 45 or 90 minutes, e.g. 45+2 or 90+3, not ${minute}+${m[2]}.`);
+  }
+  const added = Number(m[2]);
+  if (added < 1 || added > MAX_ADDED) throw new LeagueError(`Added time must be between 1 and ${MAX_ADDED} minutes.`);
+  return { minute, addedMinute: added };
+}
 
 /**
  * Adds a goal, own goal, yellow or red card.
@@ -376,13 +402,13 @@ export function addEvent(db: DatabaseSync, matchId: number, input: EventInput): 
     }
   }
 
-  const minute = optionalNumber(input.minute, "Minute", 150);
+  const { minute, addedMinute } = parseMinute(input.minute);
   const { lastInsertRowid } = db
     .prepare(
-      `INSERT INTO match_events (match_id, type, team_id, player_id, assist_player_id, minute)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO match_events (match_id, type, team_id, player_id, assist_player_id, minute, added_minute)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(matchId, type, teamId, playerId, assistId, minute);
+    .run(matchId, type, teamId, playerId, assistId, minute, addedMinute);
   return Number(lastInsertRowid);
 }
 

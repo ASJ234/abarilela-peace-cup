@@ -48,7 +48,7 @@ export function EventForm({ matchId, home, away }: { matchId: number; home: Side
       {pickFrom.players.length === 0 ? (
         <Alert tone="error">{pickFrom.name} has no players registered. Add the squad first.</Alert>
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6rem]">
+        <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem]">
           <Field label={type === "goal" ? "Scorer" : type === "own_goal" ? `Player (${pickFrom.name})` : "Player"}>
             <Select name="playerId" required value={scorer} onChange={(e) => setScorer(e.target.value)}>
               <option value="" disabled>Choose player…</option>
@@ -56,7 +56,17 @@ export function EventForm({ matchId, home, away }: { matchId: number; home: Side
             </Select>
           </Field>
           <Field label="Minute" className="sm:order-last">
-            <Input name="minute" type="number" inputMode="numeric" min={0} max={150} placeholder="–" className="num" />
+            {/* Text, not number, so added time can be typed as "90+3". The phone keypad ("tel") has a + key. */}
+            <Input
+              name="minute"
+              type="text"
+              inputMode="tel"
+              autoComplete="off"
+              pattern="\s*\d{1,3}\s*(\+\s*\d{1,2})?\s*'?\s*"
+              title="A minute like 37, or 45+2 / 90+3 for added time"
+              placeholder="eg 90+3"
+              className="num"
+            />
           </Field>
           {type === "goal" && (
             <Field label="Assist (optional)" className="col-span-2 sm:col-span-1">

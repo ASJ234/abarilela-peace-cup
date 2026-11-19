@@ -301,7 +301,7 @@ describe("formats", () => {
     db.exec("PRAGMA user_version = 2");
     // Simulate a v2 database: no format column yet.
     db.exec(`ALTER TABLE seasons DROP COLUMN format`);
-    db.exec(`DROP TABLE sessions; DROP TABLE users; DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned;`); // added by later migrations
+    db.exec(`DROP TABLE sessions; DROP TABLE users; DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned; ALTER TABLE match_events DROP COLUMN added_minute;`); // added by later migrations
     db.exec(`INSERT INTO seasons (name) VALUES ('Cup'), ('League')`);
     db.exec(`INSERT INTO league_groups (season_id, name) VALUES (1, 'Group A')`);
     migrate(db);
@@ -423,6 +423,30 @@ describe("players, events and stats", () => {
 
     assert.throws(() => players.deletePlayer(db, p["John Okello"]), /Remove those match events first/);
     players.deletePlayer(db, p["Sam Ouma"]);
+  });
+
+  it("records added time like 90+3 and orders it after the 90th minute", () => {
+    assert.deepEqual(matches.parseMinute("90+3"), { minute: 90, addedMinute: 3 });
+    assert.deepEqual(matches.parseMinute(" 45 + 2' "), { minute: 45, addedMinute: 2 });
+    assert.deepEqual(matches.parseMinute("37"), { minute: 37, addedMinute: null });
+    assert.deepEqual(matches.parseMinute(""), { minute: null, addedMinute: null });
+    assert.throws(() => matches.parseMinute("90+"), /90\+3 for added time/);
+    assert.throws(() => matches.parseMinute("ninety"), /90\+3 for added time/);
+    assert.throws(() => matches.parseMinute("90+0"), /Added time/);
+    assert.throws(() => matches.parseMinute("90+45"), /Added time/);
+    assert.throws(() => matches.parseMinute("35+2"), /after 45 or 90/);
+    assert.throws(() => matches.parseMinute("89+1"), /after 45 or 90/);
+
+    const goal = (minute: string) =>
+      matches.addEvent(db, matchId, { type: "goal", teamId: t.Lions, playerId: p["John Okello"], minute });
+    goal("90+3");
+    goal("90");
+    goal("90+1");
+    goal("88");
+    assert.deepEqual(
+      matches.listEvents(db, matchId).map((e) => [e.minute, e.addedMinute]),
+      [[88, null], [90, null], [90, 1], [90, 3]],
+    );
   });
 
   it("validates events", () => {

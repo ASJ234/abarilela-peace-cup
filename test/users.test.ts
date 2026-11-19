@@ -69,7 +69,8 @@ describe("accounts", () => {
     const old = new DatabaseSync(":memory:");
     migrate(old);
     old.exec(`DROP INDEX idx_users_single_admin; DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned;
-      PRAGMA user_version = 5;`); // pretend migrations 6 and 7 haven't run
+      ALTER TABLE match_events DROP COLUMN added_minute;
+      PRAGMA user_version = 5;`); // pretend migrations 6 to 8 haven't run
     const h = users.hashPassword("12345678");
     for (const name of ["oldest", "second", "third"]) {
       old.prepare("INSERT INTO users (username, name, password_hash, role) VALUES (?, ?, ?, 'admin')").run(name, name, h);
@@ -167,7 +168,7 @@ describe("accounts", () => {
     migrate(old);
     // Rebuild a version-4 users table (email column) with two accounts.
     old.exec(`DROP TABLE sessions; DROP TABLE users; PRAGMA user_version = 4;
-      DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned;
+      DROP INDEX idx_seasons_single_pin; ALTER TABLE seasons DROP COLUMN pinned; ALTER TABLE match_events DROP COLUMN added_minute;
       CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
         password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'fan', favourite_team_id INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')));
       CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);`);

@@ -1,3 +1,4 @@
+import { formatMinute } from "@/lib/format";
 import type { EventType, Match, MatchEvent } from "@/lib/types";
 
 export const EVENT_ICON: Record<EventType, string> = { goal: "⚽", own_goal: "⚽", yellow: "🟨", red: "🟥" };
@@ -29,7 +30,7 @@ export function EventList({
         const home = e.teamId === match.home.id;
         return (
           <li key={e.id} className={`flex items-center gap-2 py-2 ${home ? "" : "flex-row-reverse text-right"}`}>
-            <span className="num w-8 shrink-0 text-xs text-muted">{e.minute != null ? `${e.minute}'` : ""}</span>
+            <span className="num w-10 shrink-0 text-xs text-muted">{formatMinute(e)}</span>
             <span aria-label={EVENT_LABEL[e.type]} title={EVENT_LABEL[e.type]}>{EVENT_ICON[e.type]}</span>
             <span className="min-w-0 flex-1">
               <span className="font-medium">{e.player.name}</span>

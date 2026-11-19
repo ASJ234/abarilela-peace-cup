@@ -13,6 +13,12 @@ export function formatDate(iso: string | null, opts: { weekday?: boolean; year?:
   });
 }
 
+/** Event time as shown on a match timeline: "37'", "90+3'", or "" when unknown. */
+export function formatMinute(e: { minute: number | null; addedMinute: number | null }): string {
+  if (e.minute == null) return "";
+  return e.addedMinute ? `${e.minute}+${e.addedMinute}'` : `${e.minute}'`;
+}
+
 /** Group items by a key while keeping first-seen order. */
 export function groupBy<T, K>(items: T[], key: (t: T) => K): Array<[K, T[]]> {
   const map = new Map<K, T[]>();

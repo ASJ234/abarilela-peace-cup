@@ -7,7 +7,7 @@ import { EventList, EVENT_LABEL, MatchMeta } from "@/components/league";
 import { EventForm, MatchFields, ResultForm } from "@/components/official";
 import { Alert, PageHeader, Section } from "@/components/ui";
 import { getDb } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMinute } from "@/lib/format";
 import { listGroups, listTeams } from "@/lib/league";
 import { getMatch, goalsRecorded, listEvents } from "@/lib/matches";
 import { listPlayers } from "@/lib/players";
@@ -60,7 +60,7 @@ export default async function MatchEditor({ params }: { params: Promise<{ id: st
                 what={`this ${EVENT_LABEL[e.type].toLowerCase()}`}
                 verb="Remove"
                 label="✕"
-                detail={`${EVENT_LABEL[e.type]} by ${e.player.name}${e.minute != null ? ` (${e.minute}')` : ""} will be removed from the match and the stats.`}
+                detail={`${EVENT_LABEL[e.type]} by ${e.player.name}${e.minute != null ? ` (${formatMinute(e)})` : ""} will be removed from the match and the stats.`}
               />
             )}
           />
