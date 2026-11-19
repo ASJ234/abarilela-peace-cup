@@ -15,6 +15,8 @@
   --rel: #c62828;
   --rel-bg: #fcebeb;
   --draw: #6b7280;
+  /* page-change progress bar: stands out on the brand-coloured header */
+  --accent: #f59e0b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,6 +35,7 @@
     --rel: #f87171;
     --rel-bg: #3a1717;
     --draw: #9ca3af;
+    --accent: #fbbf24;
   }
 }
 
@@ -51,6 +54,7 @@
   --color-rel: var(--rel);
   --color-rel-bg: var(--rel-bg);
   --color-draw: var(--draw);
+  --color-accent: var(--accent);
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -72,4 +76,10 @@ body {
   input, select, textarea {
     font-size: 16px;
   }
+}
+
+/* Top progress bar while a page loads (components/layout/NavProgress.tsx). */
+@keyframes nav-progress {
+  from { width: 0; }
+  to { width: 85%; }
 }

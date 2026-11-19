@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Spinner } from "./Skeleton";
 
 export type TabItem = {
   href: string;
@@ -15,19 +16,35 @@ export type TabItem = {
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 
+/** Shows a spinner next to the label while this tab's page is loading. Must be inside the <Link>. */
+function TabLabel({ label }: { label: string }) {
+  const { pending } = useLinkStatus();
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {label}
+      {pending && <Spinner className="text-xs text-brand" />}
+    </span>
+  );
+}
+
 /**
  * Tab bar driven by the URL.
  * - `fill`: on phones the tabs share the width equally (use for a few short labels).
  * - Otherwise the bar scrolls sideways when it doesn't fit, with a fade at the edge
  *   as a hint, and the active tab is scrolled into view.
+ * - A clicked tab becomes active straight away, with a spinner until its page has loaded.
  */
 export function Tabs({ items, fill = false }: { items: TabItem[]; fill?: boolean }) {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
   const [fade, setFade] = useState({ left: false, right: false });
+  // The tab just clicked, shown as active until the URL catches up.
+  const [clicked, setClicked] = useState<{ href: string; from: string } | null>(null);
+  const optimistic = clicked && clicked.from === pathname ? clicked.href : null;
 
-  const isActive = (t: TabItem) =>
+  const matchesUrl = (t: TabItem) =>
     (t.exact ? pathname === t.href : under(pathname, t.href)) || (t.alsoActiveFor ?? []).some((p) => under(pathname, p));
+  const isActive = (t: TabItem) => (optimistic ? t.href === optimistic : matchesUrl(t));
 
   useEffect(() => {
     const nav = navRef.current;
@@ -60,11 +77,16 @@ export function Tabs({ items, fill = false }: { items: TabItem[]; fill?: boolean
               key={t.href}
               href={t.href}
               aria-current={active ? "page" : undefined}
+              onClick={(e) => {
+                // Opening in a new tab or window doesn't change this page.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                if (!matchesUrl(t) || t.href !== pathname) setClicked({ href: t.href, from: pathname });
+              }}
               className={`flex min-h-11 items-center justify-center whitespace-nowrap border-b-2 text-sm font-semibold ${
                 fill ? "flex-1 px-1 sm:flex-none sm:px-4" : "px-3 sm:px-4"
               } ${active ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg"}`}
             >
-              {t.label}
+              <TabLabel label={t.label} />
             </Link>
           );
         })}

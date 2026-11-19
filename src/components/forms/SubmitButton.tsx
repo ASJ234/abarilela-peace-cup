@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Button, ConfirmDialog, type ButtonSize, type ButtonVariant, type ConfirmOptions } from "@/components/ui";
+import { Button, ConfirmDialog, Spinner, type ButtonSize, type ButtonVariant, type ConfirmOptions } from "@/components/ui";
 
 /**
- * Submit button for server-action forms. Shows a pending label while saving.
+ * Submit button for server-action forms. Shows a spinner and a pending label while saving
+ * (including the page change when the action redirects, e.g. after signing in).
  * With `confirm`, it first opens a dialog with Cancel / Confirm buttons and only
  * submits the form if the user confirms.
  */
@@ -38,8 +39,9 @@ export function SubmitButton({
         variant={variant}
         size={size}
         disabled={pending}
+        aria-busy={pending || undefined}
         aria-label={ariaLabel}
-        className={className}
+        className={`${className} aria-busy:disabled:opacity-90`}
         onClick={(e) => {
           if (confirm) {
             e.preventDefault();
@@ -47,7 +49,14 @@ export function SubmitButton({
           }
         }}
       >
-        {pending ? pendingText : children}
+        {pending ? (
+          <>
+            <Spinner />
+            {pendingText}
+          </>
+        ) : (
+          children
+        )}
       </Button>
       {confirm && (
         <ConfirmDialog

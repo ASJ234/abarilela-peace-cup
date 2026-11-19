@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
+import { NavProgress } from "@/components/layout/NavProgress";
 import { SiteFooter, SiteHeader } from "@/components/layout/SiteHeader";
 import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
@@ -24,6 +26,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
+        <Suspense>
+          <NavProgress />
+        </Suspense>
         <SiteHeader user={await getCurrentUser()} />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:py-6">{children}</main>
         <SiteFooter />
