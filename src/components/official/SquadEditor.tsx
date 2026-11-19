@@ -1,6 +1,6 @@
 import { addPlayersAction, deletePlayerAction, updatePlayerAction } from "@/app/actions";
-import { ActionForm, DeleteButton, SubmitButton } from "@/components/forms";
-import { Field, Input, Select, Textarea } from "@/components/ui";
+import { ActionForm, DeleteButton, SubmitButton, SubmitOnChangeSelect } from "@/components/forms";
+import { Field, Input, Textarea } from "@/components/ui";
 import type { SquadRow } from "@/lib/players";
 import { POSITIONS, POSITION_LABEL } from "@/lib/types";
 
@@ -39,15 +39,19 @@ export function SquadEditor({ squad }: { squad: SquadRow[] }) {
           >
             <Input name="number" type="number" inputMode="numeric" min={0} max={99} defaultValue={p.number ?? ""} aria-label="Shirt number" placeholder="No." className="num" />
             <Input name="name" defaultValue={p.name} required maxLength={60} aria-label="Player name" className="col-span-2 sm:col-span-1" />
-            <Select
+            <SubmitOnChangeSelect
+              // Saves the row as soon as a position is picked (Save is for number/name).
               // React resets the form after the action, and a <select> resets to the
               // option it first mounted with; remounting picks up the saved position.
               key={p.position ?? ""}
               name="position"
-              defaultValue={p.position ?? ""} aria-label="Position" className="col-span-2 sm:col-span-1">
+              defaultValue={p.position ?? ""}
+              aria-label="Position"
+              className="col-span-2 sm:col-span-1"
+            >
               <option value="">No position</option>
               {POSITIONS.map((pos) => <option key={pos} value={pos}>{POSITION_LABEL[pos]}</option>)}
-            </Select>
+            </SubmitOnChangeSelect>
             <SubmitButton variant="secondary">Save</SubmitButton>
           </ActionForm>
           <div className="mt-2 flex items-center justify-between gap-2">
