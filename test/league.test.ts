@@ -503,6 +503,10 @@ describe("players, events and stats", () => {
     await assert.rejects(add({ playerId: p["Ali Hassan"] }), /isn't in this team's squad/);
     await assert.rejects(add({ type: "own_goal" }), /choose a player from the team that conceded/);
     await assert.rejects(add({ assistId: p["John Okello"] }), /can't assist their own goal/);
+    // The database refuses a self-assist too, even when written directly.
+    const goal = await matches.addEvent(db, matchId, { type: "goal", teamId: t.Lions, playerId: p["John Okello"] });
+    await assert.rejects(db.run("UPDATE match_events SET assist_player_id = player_id WHERE id = ?", [goal]), /no_self_assist/);
+    await matches.deleteEvent(db, goal);
     await assert.rejects(add({ assistId: p["Ali Hassan"] }), /must come from the scoring team/);
     await assert.rejects(add({ minute: 200 }), /Minute/);
     await assert.rejects(add({ type: "penalty" }), /Choose what happened/);
