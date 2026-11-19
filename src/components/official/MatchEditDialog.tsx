@@ -3,9 +3,9 @@
 import { createContext, useContext, useState } from "react";
 import { updateMatchAction } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Button, Modal, type ButtonSize } from "@/components/ui";
+import { Alert, Button, Modal, type ButtonSize } from "@/components/ui";
 import { formatDate } from "@/lib/format";
-import type { Format, Group, Match, Team } from "@/lib/types";
+import { PLAYED_MATCH_LOCKED, type Format, type Group, type Match, type Team } from "@/lib/types";
 import { MatchFields } from "./MatchFields";
 
 type Ctx = { open: (m: Match) => void };
@@ -40,7 +40,14 @@ export function MatchEditProvider({
         title="Edit match"
         description={editing ? `${editing.home.name} v ${editing.away.name} · ${formatDate(editing.date)}` : undefined}
       >
-        {editing && (
+        {editing?.played ? (
+          <div className="space-y-4">
+            <Alert>🔒 {PLAYED_MATCH_LOCKED}</Alert>
+            <div className="flex justify-end">
+              <Button type="button" variant="secondary" onClick={close} className="w-full sm:w-auto">Close</Button>
+            </div>
+          </div>
+        ) : editing && (
           <ActionForm key={editing.id} action={updateMatchAction} fields={{ matchId: editing.id }} onSuccess={close} className="space-y-4">
             <MatchFields teams={teams} groups={groups} format={format} match={editing} />
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

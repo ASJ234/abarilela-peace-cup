@@ -360,17 +360,22 @@ describe("fixture CRUD", () => {
   let seasonId: number;
   beforeEach(() => ({ db, seasonId } = freshDb()));
 
-  it("creates, edits (including swapping home/away with the score) and deletes matches", () => {
+  it("creates, edits and deletes matches, and locks a played match's details", () => {
     league.addTeams(db, seasonId, ["A", "B", "C"]);
     const t = Object.fromEntries(league.listTeams(db, seasonId).map((x) => [x.name, x.id]));
     assert.throws(() => matches.createMatch(db, seasonId, { homeTeamId: t.A, awayTeamId: t.A }), /can't play itself/);
     assert.throws(() => matches.createMatch(db, seasonId, { homeTeamId: t.A, awayTeamId: t.B, kickoff: "25:00" }), /valid time/);
 
     const id = matches.createMatch(db, seasonId, { homeTeamId: t.A, awayTeamId: t.B, date: "2026-04-04", venue: "Main ground" });
+    const edit = { homeTeamId: t.B, awayTeamId: t.A, date: "2026-04-05", kickoff: "16:30", venue: "" };
     matches.saveResult(db, id, 3, 1);
-    matches.updateMatch(db, id, { homeTeamId: t.B, awayTeamId: t.A, date: "2026-04-05", kickoff: "16:30", venue: "" });
+    assert.throws(() => matches.updateMatch(db, id, edit), /already been played/);
+    assert.equal(matches.getMatch(db, id)!.date, "2026-04-04");
+
+    matches.saveResult(db, id, "", ""); // clearing the score unlocks it
+    matches.updateMatch(db, id, edit);
     const m = matches.getMatch(db, id)!;
-    assert.deepEqual([m.home.name, m.homeScore, m.awayScore, m.date, m.kickoff, m.venue], ["B", 1, 3, "2026-04-05", "16:30", null]);
+    assert.deepEqual([m.home.name, m.homeScore, m.date, m.kickoff, m.venue], ["B", null, "2026-04-05", "16:30", null]);
 
     matches.deleteMatch(db, id);
     assert.equal(matches.getMatch(db, id), null);

@@ -3,7 +3,7 @@ import { generateRoundRobin } from "./fixtures";
 import { listDates, listGroups, listTeams, mustGetSeason } from "./league";
 import { SchedulingError, scheduleMatches } from "./scheduler";
 import { computeStandings } from "./standings";
-import type { EventType, GroupTable, Match, MatchEvent, Season } from "./types";
+import { PLAYED_MATCH_LOCKED, type EventType, type GroupTable, type Match, type MatchEvent, type Season } from "./types";
 import {
   LeagueError, type Row, isBlank, optionalDate, optionalId, optionalNumber, optionalText, optionalTime, tx, wholeNumber,
 } from "./validate";
@@ -159,24 +159,20 @@ export function createMatch(db: DatabaseSync, seasonId: number, input: MatchInpu
   return Number(lastInsertRowid);
 }
 
+/** Edits an unplayed match. A match with a score is locked (see PLAYED_MATCH_LOCKED). */
 export function updateMatch(db: DatabaseSync, matchId: number, input: MatchInput): void {
   const existing = mustGetMatch(db, matchId);
+  if (existing.played) throw new LeagueError(PLAYED_MATCH_LOCKED);
   const m = parseMatch(db, existing.seasonId, input);
   const teamsChanged = m.homeId !== existing.home.id || m.awayId !== existing.away.id;
   const swapped = m.homeId === existing.away.id && m.awayId === existing.home.id;
   if (teamsChanged && !swapped && listEvents(db, matchId).length > 0) {
     throw new LeagueError("This match has goals or cards recorded. Remove them before changing the teams.");
   }
-  tx(db, () => {
-    db.prepare(
-      `UPDATE matches SET round = ?, date = ?, kickoff = ?, venue = ?, stage = ?, group_id = ?,
-         home_team_id = ?, away_team_id = ? WHERE id = ?`,
-    ).run(m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId, matchId);
-    // If home and away were swapped, swap the score too so it stays attached to the right team.
-    if (swapped) {
-      db.prepare("UPDATE matches SET home_score = away_score, away_score = home_score WHERE id = ?").run(matchId);
-    }
-  });
+  db.prepare(
+    `UPDATE matches SET round = ?, date = ?, kickoff = ?, venue = ?, stage = ?, group_id = ?,
+       home_team_id = ?, away_team_id = ? WHERE id = ?`,
+  ).run(m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId, matchId);
 }
 
 export function deleteMatch(db: DatabaseSync, matchId: number): number {

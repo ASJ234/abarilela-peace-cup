@@ -59,6 +59,11 @@ export type Match = {
   played: boolean;
 };
 
+/** Shown when someone tries to edit a match that has a score. */
+export const PLAYED_MATCH_LOCKED =
+  "This match has already been played, so its teams, date, kick-off, venue and stage can't be changed. " +
+  "If the score was entered by mistake, clear it first (empty both score boxes and save), then edit the match.";
+
 export type EventType = "goal" | "own_goal" | "yellow" | "red";
 
 export type MatchEvent = {

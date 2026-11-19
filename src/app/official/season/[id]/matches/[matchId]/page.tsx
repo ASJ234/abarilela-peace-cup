@@ -11,6 +11,7 @@ import { formatDate, formatMinute } from "@/lib/format";
 import { listGroups, listTeams } from "@/lib/league";
 import { getMatch, goalsRecorded, listEvents } from "@/lib/matches";
 import { listPlayers } from "@/lib/players";
+import { PLAYED_MATCH_LOCKED } from "@/lib/types";
 import { loadSeasonForOfficial } from "../../data";
 
 export const metadata: Metadata = { title: "Match details" };
@@ -79,10 +80,14 @@ export default async function MatchEditor({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Edit match" description="Change the teams, date, kick-off time, venue or stage.">
-        <ActionForm action={updateMatchAction} fields={{ matchId: m.id }} className="space-y-3">
-          <MatchFields teams={listTeams(db, season.id)} groups={listGroups(db, season.id)} format={season.format} match={m} />
-          <SubmitButton className="w-full sm:w-auto">Save details</SubmitButton>
-        </ActionForm>
+        {m.played ? (
+          <Alert>🔒 {PLAYED_MATCH_LOCKED}</Alert>
+        ) : (
+          <ActionForm action={updateMatchAction} fields={{ matchId: m.id }} className="space-y-3">
+            <MatchFields teams={listTeams(db, season.id)} groups={listGroups(db, season.id)} format={season.format} match={m} />
+            <SubmitButton className="w-full sm:w-auto">Save details</SubmitButton>
+          </ActionForm>
+        )}
       </Section>
 
       <Section tone="danger" title="Delete match" description="Removes the match with its score, goals and cards.">
