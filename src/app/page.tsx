@@ -1,5 +1,7 @@
+import { ListChecks, ListOrdered, Medal, ShieldCheck, Target } from "lucide-react";
 import {
-  About, Competitions, FairPlay, Hero, HomeCard, MatchMiniList, MiniTable, Podium, Records, StatStrip, YourTeam,
+  About, BallIcon, Competitions, FairPlay, Hero, HomeCard, MatchMiniList, MiniTable, Podium, Records, StatStrip, UpcomingStrip,
+  YourTeam, cardIcon,
 } from "@/components/home";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -40,46 +42,51 @@ export default async function Home() {
     return { ...s, played: n.played, matches: n.matches, teams: n.teams };
   });
 
+  const [tables, scorers, assists, fair, numbers] = await Promise.all([
+    getTables(db, featured), topScorers(db, featured.id, 3), topAssists(db, featured.id, 3), fairPlay(db, featured.id),
+    seasonNumbers(db, featured.id),
+  ]);
+
   return (
-    <div className="space-y-6">
-      <Hero season={featured} nextMatch={next} signedIn={!!me} name={me?.name} />
-
-      {me && <YourTeam snapshot={snapshot} />}
-
-      <StatStrip n={await seasonNumbers(db, featured.id)} />
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <HomeCard title="Latest results" icon="✅" href={`${base}/results`}>
-            <MatchMiniList matches={latestResults(matches, 4)} seasonId={featured.id} empty="No results yet." />
-          </HomeCard>
-          <HomeCard title="Coming up" icon="📅" href={`${base}/fixtures`}>
-            <MatchMiniList matches={upcoming(matches, 5).slice(next ? 1 : 0)} seasonId={featured.id} empty="Nothing else scheduled yet." />
-          </HomeCard>
-          <HomeCard title="Season records" icon="📜">
-            <Records records={seasonRecords(matches)} seasonId={featured.id} />
-          </HomeCard>
-        </div>
-        <div className="space-y-6">
-          <HomeCard title={featured.format === "groups" ? "Group leaders" : "Top of the table"} icon="🏆" href={base} linkLabel="Full table">
-            <MiniTable tables={await getTables(db, featured)} seasonId={featured.id} />
-          </HomeCard>
-          <HomeCard title="Golden Boot race" icon="⚽" href={`${base}/stats`}>
-            <Podium stats={await topScorers(db, featured.id, 3)} unit="goals" seasonId={featured.id} empty="No goals yet. Who will score first?" />
-          </HomeCard>
-          <HomeCard title="Top playmakers" icon="🎯" href={`${base}/stats`}>
-            <Podium stats={await topAssists(db, featured.id, 3)} unit="assists" seasonId={featured.id} empty="No assists recorded yet." />
-          </HomeCard>
-          <HomeCard title="Fair Play award" icon="🕊️" href={`${base}/stats`} linkLabel="Discipline">
-            <FairPlay rows={await fairPlay(db, featured.id)} />
-          </HomeCard>
-        </div>
+    <div className="space-y-8">
+      <div className="space-y-6">
+        <Hero season={featured} nextMatch={next} signedIn={!!me} name={me?.name} />
+        {me && <YourTeam snapshot={snapshot} />}
+        {/* The hero spotlights the next match; these are the ones after it. */}
+        <UpcomingStrip matches={upcoming(matches, 5).slice(next ? 1 : 0)} seasonId={featured.id} href={`${base}/fixtures`} />
       </div>
 
+      {/* Pairs of cards in rows, so both columns line up on wide screens. On phones they stack, most-wanted first. */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <HomeCard title={featured.format === "groups" ? "Group leaders" : "Top of the table"} icon={cardIcon(ListOrdered)} href={base} linkLabel="Full table">
+          <MiniTable tables={tables} seasonId={featured.id} />
+        </HomeCard>
+        <HomeCard title="Latest results" icon={cardIcon(ListChecks)} href={`${base}/results`}>
+          <MatchMiniList matches={latestResults(matches, 4)} seasonId={featured.id} empty="No results yet." />
+        </HomeCard>
+        <HomeCard title="Golden Boot race" icon={<BallIcon size={16} strokeWidth={2.25} />} href={`${base}/stats`}>
+          <Podium stats={scorers} unit={["goal", "goals"]} seasonId={featured.id} empty="No goals yet. Who will score first?" />
+        </HomeCard>
+        <HomeCard title="Top playmakers" icon={cardIcon(Target)} href={`${base}/stats`}>
+          <Podium stats={assists} unit={["assist", "assists"]} seasonId={featured.id} empty="No assists recorded yet." />
+        </HomeCard>
+        <HomeCard title="Fair Play award" icon={cardIcon(ShieldCheck)} href={`${base}/stats`} linkLabel="Discipline">
+          <FairPlay rows={fair} />
+        </HomeCard>
+        <HomeCard title="Season records" icon={cardIcon(Medal)}>
+          <Records records={seasonRecords(matches)} seasonId={featured.id} />
+        </HomeCard>
+      </div>
+
+      <section aria-labelledby="season-numbers">
+        <h2 id="season-numbers" className="mb-3 text-lg font-bold">{featured.name} in numbers</h2>
+        <StatStrip n={numbers} />
+      </section>
+
       {competitions.length > 1 && (
-        <section>
-          <h2 className="mb-3 text-lg font-bold">All competitions</h2>
-          <Competitions seasons={competitions} />
+        <section aria-labelledby="all-competitions">
+          <h2 id="all-competitions" className="mb-3 text-lg font-bold">All competitions</h2>
+          <Competitions seasons={competitions} featuredId={featured.id} />
         </section>
       )}
 

@@ -1,3 +1,4 @@
+import { CalendarDays, ChartColumn, Clock, ListChecks, ListOrdered, MapPin, Shirt, Trophy, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PitchLines } from "@/components/auth";
 import { formatDate } from "@/lib/format";
@@ -19,10 +20,10 @@ export function Hero({
   return (
     <section className="relative overflow-hidden rounded-2xl bg-brand text-brand-fg">
       <PitchLines />
-      <div className="relative grid gap-6 p-5 sm:p-8 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+      <div className="relative grid gap-6 p-5 sm:p-8 lg:grid-cols-[1.3fr_1fr] lg:items-center">
         <div>
           <p className="text-sm font-semibold uppercase tracking-widest opacity-80">
-            {signedIn && name ? `Welcome back, ${name.split(" ")[0]}` : "🕊️ Football for unity"}
+            {signedIn && name ? `Welcome back, ${name.split(" ")[0]}` : "Football for unity"}
           </p>
           <h1 className="mt-2 text-3xl font-black leading-tight sm:text-5xl">
             Abarilela <span className="block">Peace Cup</span>
@@ -36,14 +37,15 @@ export function Hero({
               <span className="opacity-80">· {FORMAT_LABEL[season.format]}</span>
             </p>
           )}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {season ? (
-              <>
-                <HeroLink href={`/season/${season.id}`} solid>View the table</HeroLink>
-                <HeroLink href={`/season/${season.id}/fixtures`}>Fixtures</HeroLink>
-              </>
-            ) : null}
-          </div>
+          {season && (
+            <nav aria-label="Season pages" className="mt-5 grid grid-cols-5 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
+              <HeroLink href={`/season/${season.id}`} icon={ListOrdered} solid>Table</HeroLink>
+              <HeroLink href={`/season/${season.id}/fixtures`} icon={CalendarDays}>Fixtures</HeroLink>
+              <HeroLink href={`/season/${season.id}/results`} icon={ListChecks}>Results</HeroLink>
+              <HeroLink href={`/season/${season.id}/stats`} icon={ChartColumn}>Stats</HeroLink>
+              <HeroLink href={`/season/${season.id}/teams`} icon={Shirt}>Teams</HeroLink>
+            </nav>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/20 backdrop-blur-sm sm:p-5">
@@ -60,10 +62,10 @@ export function Hero({
               {nextMatch.date ? (
                 <>
                   <Countdown date={nextMatch.date} kickoff={nextMatch.kickoff} />
-                  <p className="mt-3 text-center text-sm opacity-90">
-                    {formatDate(nextMatch.date)}
-                    {nextMatch.kickoff && ` · ${nextMatch.kickoff}`}
-                    {nextMatch.venue && ` · 📍 ${nextMatch.venue}`}
+                  <p className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-sm opacity-90">
+                    <span className="inline-flex items-center gap-1"><CalendarDays size={14} aria-hidden />{formatDate(nextMatch.date)}</span>
+                    {nextMatch.kickoff && <span className="inline-flex items-center gap-1"><Clock size={14} aria-hidden />{nextMatch.kickoff}</span>}
+                    {nextMatch.venue && <span className="inline-flex items-center gap-1"><MapPin size={14} aria-hidden />{nextMatch.venue}</span>}
                   </p>
                 </>
               ) : (
@@ -72,7 +74,7 @@ export function Hero({
             </Link>
           ) : (
             <div className="py-6 text-center">
-              <p className="text-4xl" aria-hidden>🏆</p>
+              <Trophy size={40} className="mx-auto opacity-90" aria-hidden />
               <p className="mt-2 font-semibold">{season ? "No upcoming matches" : "The season starts soon"}</p>
               <p className="text-sm opacity-80">{season ? "Check the results and final table." : "Fixtures will appear here."}</p>
             </div>
@@ -83,14 +85,15 @@ export function Hero({
   );
 }
 
-function HeroLink({ href, children, solid }: { href: string; children: React.ReactNode; solid?: boolean }) {
+function HeroLink({ href, icon: Icon, children, solid }: { href: string; icon: LucideIcon; children: React.ReactNode; solid?: boolean }) {
   return (
     <Link
       href={href}
-      className={`inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold transition ${
-        solid ? "bg-white text-[var(--brand)] hover:opacity-90" : "ring-1 ring-white/50 hover:bg-white/10"
+      className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs font-semibold transition sm:min-h-11 sm:flex-row sm:gap-1.5 sm:rounded-full sm:px-3.5 sm:text-sm ${
+        solid ? "bg-white text-[var(--brand)] hover:opacity-90" : "ring-1 ring-white/40 hover:bg-white/10"
       }`}
     >
+      <Icon size={16} aria-hidden />
       {children}
     </Link>
   );

@@ -40,7 +40,7 @@ export function SiteHeader({ user }: { user: User | null }) {
 export function SiteFooter() {
   return (
     <footer className="border-t border-border py-6 text-center text-xs text-muted">
-      <p>🕊️ Abarilela Peace Cup · Football for unity</p>
+      <p>Abarilela Peace Cup · Football for unity</p>
     </footer>
   );
 }

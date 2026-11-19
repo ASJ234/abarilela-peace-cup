@@ -13,6 +13,7 @@
     "db:copy-sqlite": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env.local --import tsx scripts/copy-sqlite-to-postgres.ts"
   },
   "dependencies": {
+    "lucide-react": "0.469.0",
     "next": "16.4.6",
     "pdf-lib": "1.17.1",
     "pg": "8.16.3",

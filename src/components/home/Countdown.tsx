@@ -23,7 +23,7 @@ export function Countdown({ date, kickoff }: { date: string; kickoff: string | n
   return (
     <div aria-live="off" className="flex justify-center gap-2 sm:gap-3">
       {ended ? (
-        <p className="text-lg font-bold">{kickoff ? "Kicking off now! ⚽" : "Match day today! ⚽"}</p>
+        <p className="text-lg font-bold">{kickoff ? "Kicking off now!" : "Match day today!"}</p>
       ) : (
         (["days", "hrs", "min", "sec"] as const).map((unit, i) => (
           <div key={unit} className="min-w-14 rounded-lg bg-white/15 px-2 py-2 text-center backdrop-blur-sm sm:min-w-16">
