@@ -6,8 +6,9 @@ const FORM_STYLE: Record<FormResult, string> = { W: "bg-top", D: "bg-draw", L: "
 const FORM_LABEL: Record<FormResult, string> = { W: "Win", D: "Draw", L: "Loss" };
 
 /**
- * League table. Every column, form guide included, is always shown: on narrow screens
- * the table scrolls sideways while the position and team stay pinned on the left.
+ * League table. Every column, form guide included, is always shown. On phones (below `md`)
+ * the table scrolls sideways while the position and team stay pinned on the left; from `md`
+ * up it fits the width, with no scrolling or pinning.
  */
 export function StandingsTable({
   rows,
@@ -25,12 +26,12 @@ export function StandingsTable({
         <EmptyState>No teams yet.</EmptyState>
       ) : (
         <Card className="overflow-hidden">
-          <div className="overflow-x-auto overscroll-x-contain" tabIndex={0} role="region" aria-label={`${title ?? "League"} table (scrolls sideways)`}>
-            <table className="num w-full min-w-[42rem] text-sm">
+          <div className="overflow-x-auto overscroll-x-contain md:overflow-x-visible" tabIndex={0} role="region" aria-label={`${title ?? "League"} table (scrolls sideways)`}>
+            <table className="num w-full min-w-[42rem] text-sm md:min-w-0">
               <thead className="bg-surface-2 text-xs uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="sticky left-0 z-10 w-10 bg-surface-2 py-3 pl-3 text-left sm:w-12 sm:pl-4" title="Position">#</th>
-                  <th className="sticky left-10 z-10 bg-surface-2 py-3 pr-3 text-left shadow-[inset_-1px_0_0_var(--border)] sm:left-12">Team</th>
+                  <th className="sticky left-0 z-10 w-10 bg-surface-2 md:static py-3 pl-3 text-left sm:w-12 sm:pl-4" title="Position">#</th>
+                  <th className="sticky left-10 z-10 bg-surface-2 py-3 pr-3 text-left shadow-[inset_-1px_0_0_var(--border)] sm:left-12 md:static md:shadow-none">Team</th>
                   <Th title="Played">P</Th>
                   <Th title="Won">W</Th>
                   <Th title="Drawn">D</Th>
@@ -54,13 +55,13 @@ export function StandingsTable({
                       key={r.teamId}
                       className={["border-t border-border", bg, divider ? "border-b-2 border-b-muted/40" : ""].join(" ")}
                     >
-                      <td className={`sticky left-0 z-[1] py-3 pl-3 font-semibold sm:pl-4 ${bg}`}>
+                      <td className={`sticky left-0 z-[1] py-3 pl-3 font-semibold sm:pl-4 md:relative ${bg}`}>
                         {r.zone && (
                           <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${r.zone === "top" ? "bg-top" : "bg-rel"}`} />
                         )}
                         {r.position}
                       </td>
-                      <td className={`sticky left-10 z-[1] max-w-[11rem] py-3 pr-3 font-medium shadow-[inset_-1px_0_0_var(--border)] sm:left-12 sm:max-w-none ${bg}`}>
+                      <td className={`sticky left-10 z-[1] max-w-[11rem] py-3 pr-3 font-medium shadow-[inset_-1px_0_0_var(--border)] sm:left-12 sm:max-w-none md:static md:shadow-none ${bg}`}>
                         <span className="block truncate">
                           {teamHref ? <Link href={teamHref(r.teamId)} className="hover:underline">{r.name}</Link> : r.name}
                         </span>
@@ -84,7 +85,7 @@ export function StandingsTable({
           </div>
         </Card>
       )}
-      <p className="mt-1.5 text-xs text-muted sm:hidden" aria-hidden>
+      <p className="mt-1.5 text-xs text-muted md:hidden" aria-hidden>
         Swipe the table sideways to see goals and form →
       </p>
     </section>

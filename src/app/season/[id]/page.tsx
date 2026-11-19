@@ -18,7 +18,7 @@ export default async function TablePage({ params }: Props) {
 
   return (
     <div>
-      <div className={grouped ? "grid gap-8 lg:grid-cols-2" : ""}>
+      <div className={grouped ? "grid gap-8" : ""}>
         {tables.map((t) => (
           <StandingsTable key={t.group?.id ?? "league"} rows={t.rows} title={t.group?.name} teamHref={teamHref} />
         ))}
