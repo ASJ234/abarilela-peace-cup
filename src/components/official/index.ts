@@ -4,6 +4,7 @@ export { EventForm } from "./EventForm";
 export { FixtureGenerator } from "./FixtureGenerator";
 export { GroupManager } from "./GroupManager";
 export { HomePagePin } from "./HomePagePin";
+export { KnockoutPlanner } from "./KnockoutPlanner";
 export { EditMatchButton, MatchEditProvider } from "./MatchEditDialog";
 export { MatchFields } from "./MatchFields";
 export { OfficialSeasonNav } from "./OfficialSeasonNav";

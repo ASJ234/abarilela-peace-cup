@@ -28,10 +28,10 @@ const COLUMNS = [
   { key: "date", label: "Date", width: 100 },
   { key: "kickoff", label: "Kick-off", width: 50 },
   { key: "side", label: "H/A", width: 32 },
-  { key: "opponent", label: "Opponent", width: 168 },
+  { key: "opponent", label: "Opponent", width: 150 },
   { key: "venue", label: "Venue", width: 125 },
   { key: "referee", label: "Referee", width: 120 },
-  { key: "result", label: "Result", width: 79 },
+  { key: "result", label: "Result", width: 97 },
 ] as const;
 type Column = (typeof COLUMNS)[number]["key"];
 
@@ -68,7 +68,13 @@ function cells(m: Match, teamId: number): Record<Column, string> {
   if (m.played) {
     const us = home ? m.homeScore! : m.awayScore!;
     const them = home ? m.awayScore! : m.homeScore!;
-    result = `${us > them ? "W" : us < them ? "L" : "D"}  ${us}–${them}`;
+    if (m.homePens != null && m.awayPens != null) {
+      const usP = home ? m.homePens : m.awayPens;
+      const themP = home ? m.awayPens : m.homePens;
+      result = `${usP > themP ? "W" : "L"}  ${us}–${them} (${usP}–${themP} p)`;
+    } else {
+      result = `${us > them ? "W" : us < them ? "L" : "D"}  ${us}–${them}`;
+    }
   }
   const round = m.stage ?? [m.groupName, m.round > 0 ? `MD${m.round}` : null].filter(Boolean).join(" · ");
   return {

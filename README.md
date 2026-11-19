@@ -21,6 +21,34 @@ Each season uses one of two formats, chosen when it's created (in **Settings**):
 Knockout or extra matches (e.g. "Semi-final", "Final") can be added to either format with a *stage*; they
 don't count toward the tables. The format can't be changed while league/group fixtures exist.
 
+### Knockout stage
+
+Once every league/group match has a result, **Schedule → 3. Knockout stage** draws the knockout
+rounds. Choose who goes through (e.g. *Top 2 of each group*), check the preview, and create the
+round. The draw uses the usual cross-over bracket, as at the World Cup and the Euros:
+
+| Qualifiers              | First round                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| 2 groups, top 2         | Semi-finals: A1 v B2, B1 v A2                                |
+| 2 groups, top 4         | Quarter-finals: A1 v B4, B2 v A3, B1 v A4, A2 v B3           |
+| 4 groups, top 2         | Quarter-finals: A1 v B2, C1 v D2, B1 v A2, D1 v C2           |
+| 8 groups, top 2         | Round of 16: A1 v B2, C1 v D2 … B1 v A2, D1 v C2 …           |
+| Group winners           | A1 v B1, C1 v D1 …                                           |
+| One league table, top 4 | Semi-finals: 1 v 4, 2 v 3 (top 8: 1 v 8, 4 v 5, 2 v 7, 3 v 6) |
+
+Teams from the same group never meet in the first round, and each group's winner and runner-up
+start in opposite halves, so they can only meet again in the final. The number going through must
+make a full bracket (2, 4, 8, 16 or 32 teams), with 1, 2, 4 or 8 groups.
+
+When a round is finished, the same section creates the next one: the winners of matches 1 and 2
+meet, then 3 and 4, and so on. Before the final you can also create a **third-place match** between
+the semi-final losers. Each round can be given a date, kick-off and venue, or these can be set per
+match afterwards.
+
+**Penalty shoot-outs:** when a knockout match (any match with a stage) ends level, boxes for the
+shoot-out appear next to the score. The shoot-out decides who goes through and is shown as
+"(4–3 pens)". A league or group match can't have one, and a shoot-out can't end level.
+
 ### Home page
 
 **Which season is featured:** the season the admin pins (Settings → *Home page* → *Pin to the
@@ -221,6 +249,7 @@ src/
     users.ts             accounts, roles, password hashing, sessions
     officials.ts         which officials manage which season; finds the season a record belongs to
     insights.ts          home-page numbers: records, fair play, a team's snapshot, upcoming matches
+    knockout.ts          knockout draw (cross-over bracket), next rounds, shoot-out winners
     pdf.ts               a team's fixtures as a PDF (A4 landscape, built with pdf-lib)
     db.ts / auth.ts      the app's shared connection; sign-in cookies, current user, lock-out
 

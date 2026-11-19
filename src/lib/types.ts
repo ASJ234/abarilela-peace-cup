@@ -57,6 +57,11 @@ export type Match = {
   away: { id: number; name: string };
   homeScore: number | null;
   awayScore: number | null;
+  /** Penalty shoot-out score, for a knockout match that ended level. */
+  homePens: number | null;
+  awayPens: number | null;
+  /** Place in a generated knockout round (1, 2…); null for other matches. */
+  bracketSlot: number | null;
   played: boolean;
 };
 

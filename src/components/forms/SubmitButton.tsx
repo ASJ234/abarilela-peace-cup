@@ -17,6 +17,7 @@ export function SubmitButton({
   size = "md",
   className = "",
   confirm,
+  disabled = false,
   "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
@@ -25,6 +26,8 @@ export function SubmitButton({
   size?: ButtonSize;
   className?: string;
   confirm?: ConfirmOptions;
+  /** Can't be pressed (e.g. something must be done first). */
+  disabled?: boolean;
   "aria-label"?: string;
 }) {
   const { pending } = useFormStatus();
@@ -38,7 +41,7 @@ export function SubmitButton({
         type="submit"
         variant={variant}
         size={size}
-        disabled={pending}
+        disabled={pending || disabled}
         aria-busy={pending || undefined}
         aria-label={ariaLabel}
         className={`${className} aria-busy:disabled:opacity-90`}

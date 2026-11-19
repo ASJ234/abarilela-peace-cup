@@ -39,6 +39,9 @@ function toMatch(r: Row): Match {
     away: { id: Number(r.away_team_id), name: String(r.away_name) },
     homeScore,
     awayScore,
+    homePens: r.home_pens == null ? null : Number(r.home_pens),
+    awayPens: r.away_pens == null ? null : Number(r.away_pens),
+    bracketSlot: r.bracket_slot == null ? null : Number(r.bracket_slot),
     played: homeScore != null && awayScore != null,
   };
 }
@@ -309,7 +312,14 @@ export async function clearLeagueFixtures(db: Db, seasonId: number): Promise<voi
 // ---------------------------------------------------------------------------
 
 /** Record a score. Passing two empty values clears the result. Returns the match's season id. */
-export async function saveResult(db: Db, matchId: number, home: unknown, away: unknown): Promise<number> {
+/**
+ * Saves (or, with both scores blank, clears) a result. A knockout match (one with a
+ * stage) that ends level can also have a penalty shoot-out score; the shoot-out is
+ * dropped whenever the match isn't a draw.
+ */
+export async function saveResult(
+  db: Db, matchId: number, home: unknown, away: unknown, pens: { home?: unknown; away?: unknown } = {},
+): Promise<number> {
   const m = await mustGetMatch(db, matchId);
   let hs: number | null = null;
   let as: number | null = null;
@@ -321,7 +331,23 @@ export async function saveResult(db: Db, matchId: number, home: unknown, away: u
     hs = wholeNumber(home, "Home score", 99);
     as = wholeNumber(away, "Away score", 99);
   }
-  await db.run("UPDATE matches SET home_score = ?, away_score = ? WHERE id = ?", [hs, as, matchId]);
+
+  let hp: number | null = null;
+  let ap: number | null = null;
+  const pensGiven = !isBlank(pens.home) || !isBlank(pens.away);
+  if (pensGiven && hs != null && hs === as) {
+    if (m.stage == null) {
+      throw new LeagueError("Only a knockout match (one with a stage, such as Semi-final) can have a penalty shoot-out.");
+    }
+    if (isBlank(pens.home) || isBlank(pens.away)) throw new LeagueError("Enter both teams' shoot-out scores, or leave both empty.");
+    hp = wholeNumber(pens.home, "Home penalties", 99);
+    ap = wholeNumber(pens.away, "Away penalties", 99);
+    if (hp === ap) throw new LeagueError("A penalty shoot-out can't end level. Check the shoot-out score.");
+  }
+  await db.run(
+    "UPDATE matches SET home_score = ?, away_score = ?, home_pens = ?, away_pens = ? WHERE id = ?",
+    [hs, as, hp, ap, matchId],
+  );
   return m.seasonId;
 }
 

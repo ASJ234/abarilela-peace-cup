@@ -98,7 +98,8 @@ describe("computeStandings", () => {
   const m = (round: number, h: number, a: number, hs: number | null, as: number | null): Match => ({
     id: ++id, round, date: `2026-01-${String(round).padStart(2, "0")}`, kickoff: null, venue: null, referee: null,
     groupId: null, groupName: null, stage: null,
-    home: teams[h - 1], away: teams[a - 1], homeScore: hs, awayScore: as, played: hs != null,
+    home: teams[h - 1], away: teams[a - 1], homeScore: hs, awayScore: as, homePens: null, awayPens: null, bracketSlot: null,
+    played: hs != null,
   });
   const points = { win: 3, draw: 1, loss: 0 };
 

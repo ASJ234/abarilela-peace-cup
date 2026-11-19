@@ -6,6 +6,7 @@ import { getCurrentUser, signInWithPassword, signOut } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { safeNextPath } from "@/lib/format";
 import * as league from "@/lib/league";
+import * as knockout from "@/lib/knockout";
 import * as matches from "@/lib/matches";
 import { type SeasonRecord, addSeasonOfficial, canManageSeason, removeSeasonOfficial, seasonOf } from "@/lib/officials";
 import * as players from "@/lib/players";
@@ -292,6 +293,24 @@ export const clearFixturesAction = official(["season", "seasonId"], async (fd) =
   return "League/group fixtures cleared.";
 });
 
+// ---- Knockout rounds -------------------------------------------------------
+
+/** "2 semi-finals", "4 quarter-finals", "8 Round of 16 matches". */
+const roundCount = (n: number, stage: string) => (stage.startsWith("Round of") ? `${n} ${stage} matches` : plural(n, stage.toLowerCase()));
+
+const roundDetails = (fd: FormData) => ({ date: fd.get("date"), kickoff: fd.get("kickoff"), venue: fd.get("venue") });
+
+export const createFirstKnockoutRoundAction = official(["season", "seasonId"], async (fd) => {
+  const r = await knockout.createFirstRound(getDb(), id(fd, "seasonId"), id(fd, "perGroup"), roundDetails(fd));
+  return `Created ${roundCount(r.matches, r.stage)}. Set dates and venues on the Matches & results tab.`;
+});
+
+export const createNextKnockoutRoundAction = official(["season", "seasonId"], async (fd) => {
+  const r = await knockout.createNextRound(getDb(), id(fd, "seasonId"), { ...roundDetails(fd), thirdPlace: fd.get("thirdPlace") === "on" });
+  const what = r.matches === 1 ? "the final" : roundCount(r.matches, r.stage);
+  return `Created ${what}${r.thirdPlace ? " and the third-place match" : ""}.`;
+});
+
 function matchInput(fd: FormData): matches.MatchInput {
   return {
     homeTeamId: fd.get("homeTeamId"), awayTeamId: fd.get("awayTeamId"),
@@ -323,7 +342,9 @@ export const setRefereeAction = official(["match", "matchId"], async (fd) => {
 });
 
 export const saveResultAction = official(["match", "matchId"], async (fd) => {
-  await matches.saveResult(getDb(), id(fd, "matchId"), fd.get("homeScore"), fd.get("awayScore"));
+  await matches.saveResult(getDb(), id(fd, "matchId"), fd.get("homeScore"), fd.get("awayScore"), {
+    home: fd.get("homePens"), away: fd.get("awayPens"),
+  });
   return "Result saved.";
 });
 
