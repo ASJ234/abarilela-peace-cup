@@ -101,7 +101,10 @@ Requires **Node.js 22.13 or newer** and a **Supabase** project (the free plan is
    [`supabase/migrations/`](supabase/migrations) in name order: paste the whole file, then **Run**.
    They're safe to run again.
 2. **Connect the app.** Copy `.env.example` to `.env.local` and set `DATABASE_URL` to your
-   project's connection string (dashboard → **Connect**), with your database password filled in.
+   project's **Transaction pooler** connection string (dashboard → **Connect** → **Connection
+   String**, port 6543), with your database password filled in. Set the same value in your
+   hosting service's environment variables. Avoid the session pooler (port 5432): it allows only
+   about 15 connections in total and runs out once the deployed app and a dev server share it.
 3. **Install and start:**
 
 ```bash
@@ -167,7 +170,7 @@ npm start
 ```
 
 The data lives in Supabase, so the app needs no disk of its own and can run on any Node host,
-serverless ones such as Vercel included (use the transaction pooler connection string there).
+serverless ones such as Vercel included.
 
 ## Scripts
 
