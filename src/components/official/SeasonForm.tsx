@@ -17,7 +17,7 @@ export function SeasonForm({ season, formatLockedReason }: { season?: Season; fo
       className="space-y-4"
     >
       <Field label="Season name">
-        <Input name="name" required maxLength={80} defaultValue={d.name} placeholder="e.g. Peace Cup 2026/27" />
+        <Input name="name" required maxLength={80} defaultValue={d.name} placeholder="e.g. Champions Cup 2026/27" />
       </Field>
 
       <FormatPicker defaultValue={d.format} lockedReason={formatLockedReason} />

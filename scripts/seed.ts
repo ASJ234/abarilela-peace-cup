@@ -6,7 +6,7 @@
  * - "Peace League 2026": a finished home-and-away league. The team top of the table is the
  *   league champion; optional play-offs were also played (a semi-final on penalties, a
  *   third-place match and a final).
- * - "Abarilela Peace Cup 2026": two groups, then semi-finals drawn by the knockout generator
+ * - "Community Cup 2026": two groups, then semi-finals drawn by the knockout generator
  *   (A1 v B2, B1 v A2), one decided by a shoot-out. The final and third-place match are coming
  *   up. Pinned to the home page.
  * - "Youth Cup 2026": four groups of three, matchday 1 played and the rest to come.
@@ -158,8 +158,8 @@ export async function seedDemo(target: Db, { replace = false } = {}) {
   await play((await stageMatches(lg.id, "Third place"))[0], [3, 2]);
   await play((await stageMatches(lg.id, "Final"))[0], [2, 0]);
 
-  // --- Peace Cup: groups done, semis played, final coming up ------------------
-  const cup = await createSeason("Abarilela Peace Cup 2026", "groups", [
+  // --- Community Cup: groups done, semis played, final coming up -------------
+  const cup = await createSeason("Community Cup 2026", "groups", [
     "Abarilela United", "Riverside FC", "Hill Stars", "Market Rangers",
     "Lakeside Athletic", "Unity Boys", "Valley Warriors", "Peace Makers FC",
   ], 2, 0);

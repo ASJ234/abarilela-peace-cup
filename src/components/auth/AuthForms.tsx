@@ -20,7 +20,7 @@ export function SignInForm({ next }: { next: string }) {
       <FormMessage state={state} />
       <SubmitButton pendingText="Signing in…" className="w-full">Sign in</SubmitButton>
       <p className="text-center text-sm text-muted">
-        No account needed to follow the Peace Cup.{" "}
+        No account needed to follow the tournament.{" "}
         <Link href="/" className="font-semibold text-brand hover:underline">Back to the site</Link>
       </p>
     </form>

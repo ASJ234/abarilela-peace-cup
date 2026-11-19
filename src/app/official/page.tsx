@@ -22,7 +22,7 @@ export default async function OfficialHome() {
         <EmptyState icon="🔒" title="Officials only">
           <p>
             You&apos;re signed in as a fan. Officials manage teams, fixtures and results. If you help run the
-            Peace Cup, ask the admin to make your account an official.
+            tournament, ask the admin to make your account an official.
           </p>
           <LinkButton href="/" variant="primary" className="mt-4">Back to the home page</LinkButton>
         </EmptyState>

@@ -29,7 +29,7 @@ export function Hero({
             {signedIn && name ? `Welcome back, ${name.split(" ")[0]}` : "Football for unity"}
           </p>
           <h1 className="mt-2 text-3xl font-black leading-tight sm:text-5xl">
-            Abarilela <span className="block">Peace Cup</span>
+            Tournament <span className="block">Management System</span>
           </h1>
           <p className="mt-3 max-w-md text-base opacity-90 sm:text-lg">
             One community, one ball. Follow every goal, every table and every fair-play moment of the season.

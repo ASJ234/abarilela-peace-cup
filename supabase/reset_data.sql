@@ -1,4 +1,4 @@
--- Abarilela Peace Cup: delete all league data and start again, keeping the tables.
+-- Tournament Management System: delete all league data and start again, keeping the tables.
 --
 -- Run it in the Supabase SQL Editor. It removes every season, with its groups, teams,
 -- playing dates, matches, squads, goals and cards. User accounts (and sign-ins) are KEPT;

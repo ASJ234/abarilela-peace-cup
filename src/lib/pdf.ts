@@ -96,8 +96,8 @@ export async function fixturesPdf(input: { seasonName: string; teams: TeamFixtur
     ? `${input.teams[0].team.name} fixtures – ${input.seasonName}`
     : `${input.seasonName} fixtures by team`;
   doc.setTitle(pdfSafe(title));
-  doc.setAuthor("Abarilela Peace Cup");
-  doc.setCreator("Abarilela Peace Cup");
+  doc.setAuthor("Tournament Management System");
+  doc.setCreator("Tournament Management System");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const [width, height] = PAGE;
@@ -145,8 +145,10 @@ export async function fixturesPdf(input: { seasonName: string; teams: TeamFixtur
   const newPage = () => {
     page = doc.addPage(PAGE);
     y = height - MARGIN - 4;
-    text(page, "ABARILELA PEACE CUP", MARGIN, y, { font: bold, size: 9, color: BRAND });
-    text(page, input.seasonName, MARGIN + 130, y, { size: 9, color: MUTED, maxWidth: width - 2 * MARGIN - 130 });
+    const brand = "TOURNAMENT MANAGEMENT SYSTEM";
+    text(page, brand, MARGIN, y, { font: bold, size: 9, color: BRAND });
+    const seasonX = MARGIN + bold.widthOfTextAtSize(brand, 9) + 14;
+    text(page, input.seasonName, seasonX, y, { size: 9, color: MUTED, maxWidth: width - MARGIN - seasonX });
     y -= 30;
     atTop = true;
   };

@@ -9,9 +9,9 @@ export function SiteHeader({ user }: { user: User | null }) {
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:py-3">
         <Link href="/" className="flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight sm:text-lg">
           <span aria-hidden className="text-2xl">⚽</span>
-          <span className="truncate">
-            <span className="hidden min-[420px]:inline">Abarilela </span>
-            <span className="font-black">Peace Cup</span>
+          {/* Wraps onto two lines on narrow phones rather than being cut off. */}
+          <span className="text-[15px] leading-tight sm:text-lg">
+            <span className="font-black">Tournament</span> Management System
           </span>
         </Link>
         {user ? (
@@ -40,7 +40,7 @@ export function SiteHeader({ user }: { user: User | null }) {
 export function SiteFooter() {
   return (
     <footer className="border-t border-border py-6 text-center text-xs text-muted">
-      <p>Abarilela Peace Cup · Football for unity</p>
+      <p>Tournament Management System</p>
     </footer>
   );
 }

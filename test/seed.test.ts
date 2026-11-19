@@ -21,9 +21,9 @@ describe("demo data (npm run seed)", () => {
     await seedDemo(db, { replace: true });
 
     const seasons = await league.listSeasons(db);
-    assert.deepEqual(seasons.map((s) => s.name).sort(), ["Abarilela Peace Cup 2026", "Peace League 2026", "Youth Cup 2026"]);
+    assert.deepEqual(seasons.map((s) => s.name).sort(), ["Community Cup 2026", "Peace League 2026", "Youth Cup 2026"]);
     assert.equal((await users.listUsers(db)).length, 4, "accounts kept");
-    const [lg, cup, youth] = ["Peace League 2026", "Abarilela Peace Cup 2026", "Youth Cup 2026"].map((n) => seasons.find((s) => s.name === n)!);
+    const [lg, cup, youth] = ["Peace League 2026", "Community Cup 2026", "Youth Cup 2026"].map((n) => seasons.find((s) => s.name === n)!);
 
     // League: finished, champion from the table, play-offs with a shoot-out.
     const lgChamps = await knockout.seasonChampions(db, lg);

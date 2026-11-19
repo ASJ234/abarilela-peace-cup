@@ -1,4 +1,4 @@
-# Abarilela Peace Cup
+# Tournament Management System
 
 A league and tournament management platform in the style of a football league. Officials register
 teams and squads, put teams in groups, enter playing dates and generate fixtures. They then record

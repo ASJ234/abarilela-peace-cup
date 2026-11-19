@@ -9,8 +9,8 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { default: "Abarilela Peace Cup", template: "%s · Abarilela Peace Cup" },
-  description: "League table, fixtures, results and stats for the Abarilela Peace Cup.",
+  title: { default: "Tournament Management System", template: "%s · Tournament Management System" },
+  description: "League tables, fixtures, results and stats for every tournament.",
 };
 
 export const viewport: Viewport = {

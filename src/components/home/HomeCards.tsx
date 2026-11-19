@@ -446,12 +446,12 @@ export function Competitions({
 
 export function About() {
   const items: { icon: LucideIcon; title: string; text: string }[] = [
-    { icon: HeartHandshake, title: "Peace through play", text: "The Peace Cup brings villages, clans and generations onto one pitch. Rivals on the field, neighbours off it." },
+    { icon: HeartHandshake, title: "Peace through play", text: "The tournament brings villages, clans and generations onto one pitch. Rivals on the field, neighbours off it." },
     { icon: ShieldCheck, title: "Fair play first", text: "Every card counts in our Fair Play race. The most sporting team is celebrated alongside the champions." },
     { icon: Users, title: "For the community", text: "Run by local officials and volunteers, open to every fan. Follow the tables, fixtures and results, and cheer your team on." },
   ];
   return (
-    <section aria-label="About the Peace Cup" className="grid gap-5 rounded-2xl border border-border bg-surface p-5 sm:grid-cols-3 sm:p-6">
+    <section aria-label="About the tournament" className="grid gap-5 rounded-2xl border border-border bg-surface p-5 sm:grid-cols-3 sm:p-6">
       {items.map(({ icon: Icon, title, text }) => (
         <div key={title} className="flex gap-3 sm:block">
           <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">

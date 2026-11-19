@@ -6,7 +6,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
         <PitchLines />
         <div className="relative">
           <p className="text-4xl" aria-hidden>🕊️⚽</p>
-          <p className="mt-4 text-2xl font-black leading-tight">Football that brings Abarilela together.</p>
+          <p className="mt-4 text-2xl font-black leading-tight">Football that brings communities together.</p>
         </div>
         <ul className="relative space-y-2 text-sm opacity-90">
           <li>✓ Follow your team: next match, position and form</li>

@@ -30,7 +30,7 @@ export default async function TeamsAndGroups({ params }: { params: Promise<{ id:
       >
         <ActionForm action={addTeamsAction} fields={{ seasonId: season.id }}>
           <Field label="Add teams" hint="One per line, or separated by commas.">
-            <Textarea name="names" rows={3} required placeholder={"Abarilela United\nRiverside FC, Hill Stars, Market Rangers"} />
+            <Textarea name="names" rows={3} required placeholder={"Lions FC\nRiverside FC, Hill Stars, Market Rangers"} />
           </Field>
           <div className="flex flex-wrap items-end gap-3">
             {groups.length > 0 && (
