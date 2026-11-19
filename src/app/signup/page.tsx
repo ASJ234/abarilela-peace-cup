@@ -13,7 +13,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   if (await getCurrentUser()) redirect(next);
   return (
     <AuthShell title="Join the Peace Cup" subtitle="Free for every fan. Pick your team and never miss a match.">
-      <SignUpForm next={next} teams={listTeamChoices(getDb())} />
+      <SignUpForm next={next} teams={await listTeamChoices(getDb())} />
     </AuthShell>
   );
 }

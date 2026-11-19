@@ -1,11 +1,11 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { Db } from "./sql";
 import { generateRoundRobin } from "./fixtures";
 import { listDates, listGroups, listTeams, mustGetSeason } from "./league";
 import { SchedulingError, scheduleMatches } from "./scheduler";
 import { computeStandings } from "./standings";
 import { PLAYED_MATCH_LOCKED, type EventType, type GroupTable, type Match, type MatchEvent, type Season } from "./types";
 import {
-  LeagueError, type Row, isBlank, optionalDate, optionalId, optionalNumber, optionalText, optionalTime, tx, wholeNumber,
+  LeagueError, type Row, isBlank, optionalDate, optionalId, optionalNumber, optionalText, optionalTime, wholeNumber,
 } from "./validate";
 
 // ---------------------------------------------------------------------------
@@ -42,52 +42,56 @@ function toMatch(r: Row): Match {
   };
 }
 
-export function listMatches(db: DatabaseSync, seasonId: number, opts: { teamId?: number } = {}): Match[] {
-  if (opts.teamId != null) {
-    return db
-      .prepare(`${MATCH_SELECT} WHERE m.season_id = ? AND (m.home_team_id = ? OR m.away_team_id = ?) ${MATCH_ORDER}`)
-      .all(seasonId, opts.teamId, opts.teamId)
-      .map(toMatch);
-  }
-  return db.prepare(`${MATCH_SELECT} WHERE m.season_id = ? ${MATCH_ORDER}`).all(seasonId).map(toMatch);
+export async function listMatches(db: Db, seasonId: number, opts: { teamId?: number } = {}): Promise<Match[]> {
+  const rows = opts.teamId != null
+    ? await db.all(
+        `${MATCH_SELECT} WHERE m.season_id = ? AND (m.home_team_id = ? OR m.away_team_id = ?) ${MATCH_ORDER}`,
+        [seasonId, opts.teamId, opts.teamId],
+      )
+    : await db.all(`${MATCH_SELECT} WHERE m.season_id = ? ${MATCH_ORDER}`, [seasonId]);
+  return rows.map(toMatch);
 }
 
-export function getMatch(db: DatabaseSync, matchId: number): (Match & { seasonId: number }) | null {
+export async function getMatch(db: Db, matchId: number): Promise<(Match & { seasonId: number }) | null> {
   if (!Number.isInteger(matchId)) return null;
-  const r = db.prepare(`${MATCH_SELECT} WHERE m.id = ?`).get(matchId);
+  const r = await db.get(`${MATCH_SELECT} WHERE m.id = ?`, [matchId]);
   return r ? { ...toMatch(r), seasonId: Number(r.season_id) } : null;
 }
 
-function mustGetMatch(db: DatabaseSync, matchId: number) {
-  const m = getMatch(db, matchId);
+async function mustGetMatch(db: Db, matchId: number) {
+  const m = await getMatch(db, matchId);
   if (!m) throw new LeagueError("Match not found.");
   return m;
 }
 
-function count(db: DatabaseSync, sql: string, ...args: number[]): number {
-  return Number((db.prepare(sql).get(...args) as Row).n);
+async function count(db: Db, sql: string, ...args: number[]): Promise<number> {
+  return Number((await db.get(sql, args) as Row).n);
 }
-export const fixtureCount = (db: DatabaseSync, seasonId: number) =>
+export const fixtureCount = (db: Db, seasonId: number) =>
   count(db, "SELECT COUNT(*) AS n FROM matches WHERE season_id = ?", seasonId);
-export const resultCount = (db: DatabaseSync, seasonId: number) =>
+export const resultCount = (db: Db, seasonId: number) =>
   count(db, "SELECT COUNT(*) AS n FROM matches WHERE season_id = ? AND home_score IS NOT NULL", seasonId);
 /** League/group-phase counts (stage IS NULL): these are what fixture generation manages. */
-export const leagueFixtureCount = (db: DatabaseSync, seasonId: number) =>
+export const leagueFixtureCount = (db: Db, seasonId: number) =>
   count(db, "SELECT COUNT(*) AS n FROM matches WHERE season_id = ? AND stage IS NULL", seasonId);
-export const leagueResultCount = (db: DatabaseSync, seasonId: number) =>
+export const leagueResultCount = (db: Db, seasonId: number) =>
   count(db, "SELECT COUNT(*) AS n FROM matches WHERE season_id = ? AND stage IS NULL AND home_score IS NOT NULL", seasonId);
 
 /**
  * The league table, or one table per group when the season uses groups.
  * Only league/group matches (no stage) count; knockout matches don't.
  */
-export function getTables(db: DatabaseSync, season: Season): GroupTable[] {
-  const teams = listTeams(db, season.id);
-  const league = listMatches(db, season.id).filter((m) => m.stage == null);
+export async function getTables(db: Db, season: Season): Promise<GroupTable[]> {
+  const [teams, all, groups] = await Promise.all([
+    listTeams(db, season.id),
+    listMatches(db, season.id),
+    season.format === "groups" ? listGroups(db, season.id) : Promise.resolve([]),
+  ]);
+  const league = all.filter((m) => m.stage == null);
   if (season.format === "league") {
     return [{ group: null, rows: computeStandings(teams, league, season.points, season) }];
   }
-  return listGroups(db, season.id).map((g) => ({
+  return groups.map((g) => ({
     group: g,
     rows: computeStandings(
       teams.filter((t) => t.groupId === g.id),
@@ -116,19 +120,19 @@ export type MatchInput = {
  * Validates a match. With no stage it is a league/group match: when the season
  * has groups, both teams must be in the same group and the match is filed under it.
  */
-function parseMatch(db: DatabaseSync, seasonId: number, input: MatchInput) {
+async function parseMatch(db: Db, seasonId: number, input: MatchInput) {
   const homeId = optionalId(input.homeTeamId);
   const awayId = optionalId(input.awayTeamId);
   if (homeId == null || awayId == null) throw new LeagueError("Choose both a home and an away team.");
   if (homeId === awayId) throw new LeagueError("A team can't play itself.");
-  const teams = new Map(listTeams(db, seasonId).map((t) => [t.id, t]));
+  const teams = new Map((await listTeams(db, seasonId)).map((t) => [t.id, t]));
   const home = teams.get(homeId);
   const away = teams.get(awayId);
   if (!home || !away) throw new LeagueError("Both teams must belong to this season.");
 
   const stage = optionalText(input.stage, "Stage", 40);
   let groupId: number | null = null;
-  if (stage == null && mustGetSeason(db, seasonId).format === "groups") {
+  if (stage == null && (await mustGetSeason(db, seasonId)).format === "groups") {
     if (home.groupId == null || home.groupId !== away.groupId) {
       throw new LeagueError(
         `${home.name} and ${away.name} aren't in the same group. For a match between groups, ` +
@@ -147,37 +151,37 @@ function parseMatch(db: DatabaseSync, seasonId: number, input: MatchInput) {
   };
 }
 
-export function createMatch(db: DatabaseSync, seasonId: number, input: MatchInput): number {
-  mustGetSeason(db, seasonId);
-  const m = parseMatch(db, seasonId, input);
-  const { lastInsertRowid } = db
-    .prepare(
-      `INSERT INTO matches (season_id, round, date, kickoff, venue, stage, group_id, home_team_id, away_team_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(seasonId, m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId);
-  return Number(lastInsertRowid);
+export async function createMatch(db: Db, seasonId: number, input: MatchInput): Promise<number> {
+  await mustGetSeason(db, seasonId);
+  const m = await parseMatch(db, seasonId, input);
+  const r = await db.get(
+    `INSERT INTO matches (season_id, round, date, kickoff, venue, stage, group_id, home_team_id, away_team_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [seasonId, m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId],
+  );
+  return Number(r!.id);
 }
 
 /** Edits an unplayed match. A match with a score is locked (see PLAYED_MATCH_LOCKED). */
-export function updateMatch(db: DatabaseSync, matchId: number, input: MatchInput): void {
-  const existing = mustGetMatch(db, matchId);
+export async function updateMatch(db: Db, matchId: number, input: MatchInput): Promise<void> {
+  const existing = await mustGetMatch(db, matchId);
   if (existing.played) throw new LeagueError(PLAYED_MATCH_LOCKED);
-  const m = parseMatch(db, existing.seasonId, input);
+  const m = await parseMatch(db, existing.seasonId, input);
   const teamsChanged = m.homeId !== existing.home.id || m.awayId !== existing.away.id;
   const swapped = m.homeId === existing.away.id && m.awayId === existing.home.id;
-  if (teamsChanged && !swapped && listEvents(db, matchId).length > 0) {
+  if (teamsChanged && !swapped && (await listEvents(db, matchId)).length > 0) {
     throw new LeagueError("This match has goals or cards recorded. Remove them before changing the teams.");
   }
-  db.prepare(
+  await db.run(
     `UPDATE matches SET round = ?, date = ?, kickoff = ?, venue = ?, stage = ?, group_id = ?,
        home_team_id = ?, away_team_id = ? WHERE id = ?`,
-  ).run(m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId, matchId);
+    [m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId, matchId],
+  );
 }
 
-export function deleteMatch(db: DatabaseSync, matchId: number): number {
-  const m = mustGetMatch(db, matchId);
-  db.prepare("DELETE FROM matches WHERE id = ?").run(matchId); // events cascade
+export async function deleteMatch(db: Db, matchId: number): Promise<number> {
+  const m = await mustGetMatch(db, matchId);
+  await db.run("DELETE FROM matches WHERE id = ?", [matchId]); // events cascade
   return m.seasonId;
 }
 
@@ -209,20 +213,20 @@ export function parseKickoffTimes(raw: unknown): string[] {
  * - Group stage: a round robin inside each group, each pair meeting once.
  * Replaces existing league/group fixtures; stage matches (e.g. Final) are kept.
  */
-export function generateFixtures(db: DatabaseSync, seasonId: number, opts: GenerateOptions): Match[] {
-  const season = mustGetSeason(db, seasonId);
+export async function generateFixtures(db: Db, seasonId: number, opts: GenerateOptions): Promise<Match[]> {
+  const season = await mustGetSeason(db, seasonId);
   const doubleRound = season.format === "league";
-  if (leagueResultCount(db, seasonId) > 0) {
+  if ((await leagueResultCount(db, seasonId)) > 0) {
     throw new LeagueError(
       "Results have already been entered for league/group matches. Clear those fixtures first if you really want to start over.",
     );
   }
 
-  const teams = listTeams(db, seasonId);
+  const teams = await listTeams(db, seasonId);
   let buckets: { groupId: number | null; label: string; teamIds: number[] }[];
 
   if (season.format === "groups") {
-    const groups = listGroups(db, seasonId);
+    const groups = await listGroups(db, seasonId);
     if (groups.length < 2) throw new LeagueError("Create at least 2 groups first (Teams & groups tab).");
     const unassigned = teams.filter((t) => t.groupId == null);
     if (unassigned.length) {
@@ -250,7 +254,7 @@ export function generateFixtures(db: DatabaseSync, seasonId: number, opts: Gener
   const maxRounds = Math.max(...perGroup.map((g) => g.length));
   for (let r = 0; r < maxRounds; r++) for (const g of perGroup) if (g[r]) ordered.push(...g[r]);
 
-  const dates = listDates(db, seasonId);
+  const dates = await listDates(db, seasonId);
   if (!dates.length) throw new LeagueError("Add playing dates first.");
 
   let scheduled;
@@ -271,20 +275,24 @@ export function generateFixtures(db: DatabaseSync, seasonId: number, opts: Gener
     );
   }
 
-  const insert = db.prepare(
-    `INSERT INTO matches (season_id, round, date, kickoff, group_id, home_team_id, away_team_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
-  tx(db, () => {
-    db.prepare("DELETE FROM matches WHERE season_id = ? AND stage IS NULL").run(seasonId);
-    for (const s of scheduled) insert.run(seasonId, s.match.round, s.date, s.kickoff, s.match.groupId, s.match.home, s.match.away);
+  await db.tx(async (t) => {
+    await t.run("DELETE FROM matches WHERE season_id = ? AND stage IS NULL", [seasonId]);
+    // One multi-row INSERT per batch: far fewer round trips to the database than one per match.
+    for (let i = 0; i < scheduled.length; i += 200) {
+      const batch = scheduled.slice(i, i + 200);
+      await t.run(
+        `INSERT INTO matches (season_id, round, date, kickoff, group_id, home_team_id, away_team_id)
+         VALUES ${batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
+        batch.flatMap((s) => [seasonId, s.match.round, s.date, s.kickoff, s.match.groupId, s.match.home, s.match.away]),
+      );
+    }
   });
   return listMatches(db, seasonId);
 }
 
 /** Removes all league/group fixtures (and their results and events). Stage matches are kept. */
-export function clearLeagueFixtures(db: DatabaseSync, seasonId: number): void {
-  db.prepare("DELETE FROM matches WHERE season_id = ? AND stage IS NULL").run(seasonId);
+export async function clearLeagueFixtures(db: Db, seasonId: number): Promise<void> {
+  await db.run("DELETE FROM matches WHERE season_id = ? AND stage IS NULL", [seasonId]);
 }
 
 // ---------------------------------------------------------------------------
@@ -292,8 +300,8 @@ export function clearLeagueFixtures(db: DatabaseSync, seasonId: number): void {
 // ---------------------------------------------------------------------------
 
 /** Record a score. Passing two empty values clears the result. Returns the match's season id. */
-export function saveResult(db: DatabaseSync, matchId: number, home: unknown, away: unknown): number {
-  const m = mustGetMatch(db, matchId);
+export async function saveResult(db: Db, matchId: number, home: unknown, away: unknown): Promise<number> {
+  const m = await mustGetMatch(db, matchId);
   let hs: number | null = null;
   let as: number | null = null;
   if (isBlank(home) && isBlank(away)) {
@@ -304,7 +312,7 @@ export function saveResult(db: DatabaseSync, matchId: number, home: unknown, awa
     hs = wholeNumber(home, "Home score", 99);
     as = wholeNumber(away, "Away score", 99);
   }
-  db.prepare("UPDATE matches SET home_score = ?, away_score = ? WHERE id = ?").run(hs, as, matchId);
+  await db.run("UPDATE matches SET home_score = ?, away_score = ? WHERE id = ?", [hs, as, matchId]);
   return m.seasonId;
 }
 
@@ -314,18 +322,17 @@ export function saveResult(db: DatabaseSync, matchId: number, home: unknown, awa
 
 export const EVENT_TYPES: EventType[] = ["goal", "own_goal", "yellow", "red"];
 
-export function listEvents(db: DatabaseSync, matchId: number): MatchEvent[] {
-  return db
-    .prepare(
-      `SELECT e.*, p.name AS player_name, p.number AS player_number, ap.name AS assist_name
-       FROM match_events e
-       JOIN players p ON p.id = e.player_id
-       LEFT JOIN players ap ON ap.id = e.assist_player_id
-       WHERE e.match_id = ?
-       ORDER BY e.minute IS NULL, e.minute, COALESCE(e.added_minute, 0), e.id`,
-    )
-    .all(matchId)
-    .map((r) => ({
+export async function listEvents(db: Db, matchId: number): Promise<MatchEvent[]> {
+  const rows = await db.all(
+    `SELECT e.*, p.name AS player_name, p.number AS player_number, ap.name AS assist_name
+     FROM match_events e
+     JOIN players p ON p.id = e.player_id
+     LEFT JOIN players ap ON ap.id = e.assist_player_id
+     WHERE e.match_id = ?
+     ORDER BY e.minute IS NULL, e.minute, COALESCE(e.added_minute, 0), e.id`,
+    [matchId],
+  );
+  return rows.map((r) => ({
       id: Number(r.id),
       matchId: Number(r.match_id),
       type: r.type as EventType,
@@ -364,8 +371,8 @@ export function parseMinute(value: unknown): { minute: number | null; addedMinut
  * - own_goal: `teamId` is the team credited; the player is from the opponent.
  * - yellow/red: player from `teamId`.
  */
-export function addEvent(db: DatabaseSync, matchId: number, input: EventInput): number {
-  const m = mustGetMatch(db, matchId);
+export async function addEvent(db: Db, matchId: number, input: EventInput): Promise<number> {
+  const m = await mustGetMatch(db, matchId);
   const type = String(input.type) as EventType;
   if (!EVENT_TYPES.includes(type)) throw new LeagueError("Choose what happened: goal, own goal, yellow or red card.");
   const teamId = optionalId(input.teamId);
@@ -374,7 +381,7 @@ export function addEvent(db: DatabaseSync, matchId: number, input: EventInput): 
 
   const playerId = optionalId(input.playerId);
   if (playerId == null) throw new LeagueError("Choose a player.");
-  const playerTeam = db.prepare("SELECT team_id FROM players WHERE id = ?").get(playerId);
+  const playerTeam = await db.get("SELECT team_id FROM players WHERE id = ?", [playerId]);
   const expectedTeam = type === "own_goal" ? opponentId : teamId;
   if (!playerTeam || Number(playerTeam.team_id) !== expectedTeam) {
     throw new LeagueError(
@@ -387,23 +394,22 @@ export function addEvent(db: DatabaseSync, matchId: number, input: EventInput): 
     assistId = optionalId(input.assistId);
     if (assistId != null) {
       if (assistId === playerId) throw new LeagueError("A player can't assist their own goal.");
-      const at = db.prepare("SELECT team_id FROM players WHERE id = ?").get(assistId);
+      const at = await db.get("SELECT team_id FROM players WHERE id = ?", [assistId]);
       if (!at || Number(at.team_id) !== teamId) throw new LeagueError("The assist must come from the scoring team.");
     }
   }
 
   const { minute, addedMinute } = parseMinute(input.minute);
-  const { lastInsertRowid } = db
-    .prepare(
-      `INSERT INTO match_events (match_id, type, team_id, player_id, assist_player_id, minute, added_minute)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(matchId, type, teamId, playerId, assistId, minute, addedMinute);
-  return Number(lastInsertRowid);
+  const r = await db.get(
+    `INSERT INTO match_events (match_id, type, team_id, player_id, assist_player_id, minute, added_minute)
+     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [matchId, type, teamId, playerId, assistId, minute, addedMinute],
+  );
+  return Number(r!.id);
 }
 
-export function deleteEvent(db: DatabaseSync, eventId: number): void {
-  db.prepare("DELETE FROM match_events WHERE id = ?").run(eventId);
+export async function deleteEvent(db: Db, eventId: number): Promise<void> {
+  await db.run("DELETE FROM match_events WHERE id = ?", [eventId]);
 }
 
 /** Goals recorded as events per side, to compare with the entered score. */

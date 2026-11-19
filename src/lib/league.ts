@@ -1,6 +1,6 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { Db } from "./sql";
 import type { Format, Group, Season, Team } from "./types";
-import { LeagueError, type Row, cleanText, optionalDate, optionalId, requiredText, tx, wholeNumber } from "./validate";
+import { LeagueError, type Row, cleanText, optionalDate, optionalId, requiredText, wholeNumber } from "./validate";
 
 export { LeagueError } from "./validate";
 
@@ -21,18 +21,18 @@ function toSeason(r: Row): Season {
   };
 }
 
-export function listSeasons(db: DatabaseSync): Season[] {
-  return db.prepare("SELECT * FROM seasons ORDER BY id DESC").all().map(toSeason);
+export async function listSeasons(db: Db): Promise<Season[]> {
+  return (await db.all("SELECT * FROM seasons ORDER BY id DESC")).map(toSeason);
 }
 
-export function getSeason(db: DatabaseSync, id: number): Season | null {
+export async function getSeason(db: Db, id: number): Promise<Season | null> {
   if (!Number.isInteger(id)) return null;
-  const r = db.prepare("SELECT * FROM seasons WHERE id = ?").get(id);
+  const r = await db.get("SELECT * FROM seasons WHERE id = ?", [id]);
   return r ? toSeason(r) : null;
 }
 
-export function mustGetSeason(db: DatabaseSync, id: number): Season {
-  const s = getSeason(db, id);
+export async function mustGetSeason(db: Db, id: number): Promise<Season> {
+  const s = await getSeason(db, id);
   if (!s) throw new LeagueError("Season not found.");
   return s;
 }
@@ -68,54 +68,51 @@ function parseFormat(v: unknown): Format {
   throw new LeagueError("Choose a format: league or group stage.");
 }
 
-export function createSeason(db: DatabaseSync, input: SeasonInput): Season {
+export async function createSeason(db: Db, input: SeasonInput): Promise<Season> {
   const s = parseSeason(input);
-  const { lastInsertRowid } = db
-    .prepare(
-      `INSERT INTO seasons (name, format, points_win, points_draw, points_loss, highlight_top, relegation)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(s.name, s.format, s.win, s.draw, s.loss, s.top, s.rel);
-  return getSeason(db, Number(lastInsertRowid))!;
+  const r = await db.get(
+    `INSERT INTO seasons (name, format, points_win, points_draw, points_loss, highlight_top, relegation)
+     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    [s.name, s.format, s.win, s.draw, s.loss, s.top, s.rel],
+  );
+  return toSeason(r!);
 }
 
-export function updateSeason(db: DatabaseSync, id: number, input: SeasonInput): Season {
-  const current = mustGetSeason(db, id);
+export async function updateSeason(db: Db, id: number, input: SeasonInput): Promise<Season> {
+  const current = await mustGetSeason(db, id);
   const s = parseSeason({ ...input, format: input.format ?? current.format });
   if (s.format !== current.format) {
-    const leagueMatches = Number(
-      (db.prepare("SELECT COUNT(*) AS n FROM matches WHERE season_id = ? AND stage IS NULL").get(id) as Row).n,
-    );
+    const r = await db.get("SELECT COUNT(*) AS n FROM matches WHERE season_id = ? AND stage IS NULL", [id]);
+    const leagueMatches = Number(r?.n ?? 0);
     if (leagueMatches > 0) {
       throw new LeagueError(
         `The format can't change while there are ${leagueMatches} league/group fixtures. Clear them on the Schedule tab first.`,
       );
     }
   }
-  db.prepare(
+  const r = await db.get(
     `UPDATE seasons SET name = ?, format = ?, points_win = ?, points_draw = ?, points_loss = ?,
-       highlight_top = ?, relegation = ? WHERE id = ?`,
-  ).run(s.name, s.format, s.win, s.draw, s.loss, s.top, s.rel, id);
-  return getSeason(db, id)!;
+       highlight_top = ?, relegation = ? WHERE id = ? RETURNING *`,
+    [s.name, s.format, s.win, s.draw, s.loss, s.top, s.rel, id],
+  );
+  return toSeason(r!);
 }
 
-export function deleteSeason(db: DatabaseSync, id: number): void {
-  db.prepare("DELETE FROM seasons WHERE id = ?").run(id);
+export async function deleteSeason(db: Db, id: number): Promise<void> {
+  await db.run("DELETE FROM seasons WHERE id = ?", [id]);
 }
 
 // ---------------------------------------------------------------------------
 // Groups
 // ---------------------------------------------------------------------------
 
-export function listGroups(db: DatabaseSync, seasonId: number): Group[] {
-  return db
-    .prepare("SELECT id, name FROM league_groups WHERE season_id = ? ORDER BY name")
-    .all(seasonId)
-    .map((r) => ({ id: Number(r.id), name: String(r.name) }));
+export async function listGroups(db: Db, seasonId: number): Promise<Group[]> {
+  const rows = await db.all("SELECT id, name FROM league_groups WHERE season_id = ? ORDER BY name", [seasonId]);
+  return rows.map((r) => ({ id: Number(r.id), name: String(r.name) }));
 }
 
-function groupInSeason(db: DatabaseSync, groupId: number, seasonId: number): boolean {
-  return Boolean(db.prepare("SELECT 1 FROM league_groups WHERE id = ? AND season_id = ?").get(groupId, seasonId));
+async function groupInSeason(db: Db, groupId: number, seasonId: number): Promise<boolean> {
+  return Boolean(await db.get("SELECT 1 FROM league_groups WHERE id = ? AND season_id = ?", [groupId, seasonId]));
 }
 
 function assertGroupFormat(season: Season) {
@@ -124,27 +121,26 @@ function assertGroupFormat(season: Season) {
   }
 }
 
-export function addGroups(db: DatabaseSync, seasonId: number, names: string[]): Group[] {
-  assertGroupFormat(mustGetSeason(db, seasonId));
+export async function addGroups(db: Db, seasonId: number, names: string[]): Promise<Group[]> {
+  assertGroupFormat(await mustGetSeason(db, seasonId));
   const cleaned = names.map(cleanText).filter(Boolean);
   if (!cleaned.length) throw new LeagueError("Enter at least one group name.");
-  const seen = new Set(listGroups(db, seasonId).map((g) => cleanText(g.name).toLowerCase()));
-  const insert = db.prepare("INSERT INTO league_groups (season_id, name) VALUES (?, ?)");
-  tx(db, () => {
+  const seen = new Set((await listGroups(db, seasonId)).map((g) => cleanText(g.name).toLowerCase()));
+  await db.tx(async (t) => {
     for (const raw of cleaned) {
       const name = requiredText(raw, "Group name", 40);
       if (seen.has(name.toLowerCase())) throw new LeagueError(`"${name}" already exists.`);
       seen.add(name.toLowerCase());
-      insert.run(seasonId, name);
+      await t.run("INSERT INTO league_groups (season_id, name) VALUES (?, ?)", [seasonId, name]);
     }
   });
   return listGroups(db, seasonId);
 }
 
 /** Create groups "Group A", "Group B", … (skipping names that already exist). */
-export function addLetteredGroups(db: DatabaseSync, seasonId: number, count: number): Group[] {
+export async function addLetteredGroups(db: Db, seasonId: number, count: number): Promise<Group[]> {
   const n = wholeNumber(count, "Number of groups", 26);
-  const existing = new Set(listGroups(db, seasonId).map((g) => cleanText(g.name).toLowerCase()));
+  const existing = new Set((await listGroups(db, seasonId)).map((g) => cleanText(g.name).toLowerCase()));
   const names: string[] = [];
   for (let i = 0; names.length < n && i < 26; i++) {
     const name = `Group ${String.fromCharCode(65 + i)}`;
@@ -153,31 +149,32 @@ export function addLetteredGroups(db: DatabaseSync, seasonId: number, count: num
   return names.length ? addGroups(db, seasonId, names) : listGroups(db, seasonId);
 }
 
-export function renameGroup(db: DatabaseSync, groupId: number, newName: string): void {
+export async function renameGroup(db: Db, groupId: number, newName: string): Promise<void> {
   const name = requiredText(newName, "Group name", 40);
-  const g = db.prepare("SELECT season_id FROM league_groups WHERE id = ?").get(groupId);
+  const g = await db.get("SELECT season_id FROM league_groups WHERE id = ?", [groupId]);
   if (!g) throw new LeagueError("Group not found.");
-  const clash = db
-    .prepare("SELECT 1 FROM league_groups WHERE season_id = ? AND name = ? AND id != ?")
-    .get(Number(g.season_id), name, groupId);
+  const clash = await db.get(
+    "SELECT 1 FROM league_groups WHERE season_id = ? AND name = ? AND id != ?",
+    [Number(g.season_id), name, groupId],
+  );
   if (clash) throw new LeagueError(`"${name}" already exists.`);
-  db.prepare("UPDATE league_groups SET name = ? WHERE id = ?").run(name, groupId);
+  await db.run("UPDATE league_groups SET name = ? WHERE id = ?", [name, groupId]);
 }
 
-export function deleteGroup(db: DatabaseSync, groupId: number): void {
-  const used = db.prepare("SELECT COUNT(*) AS n FROM matches WHERE group_id = ?").get(groupId) as Row;
-  if (Number(used.n) > 0) {
+export async function deleteGroup(db: Db, groupId: number): Promise<void> {
+  const used = await db.get("SELECT COUNT(*) AS n FROM matches WHERE group_id = ?", [groupId]);
+  if (Number(used?.n ?? 0) > 0) {
     throw new LeagueError("This group has fixtures. Delete or regenerate those fixtures before removing the group.");
   }
-  db.prepare("DELETE FROM league_groups WHERE id = ?").run(groupId); // teams fall back to "no group"
+  await db.run("DELETE FROM league_groups WHERE id = ?", [groupId]); // teams fall back to "no group"
 }
 
 /** Draw all teams into the season's groups at random, as evenly as possible. */
-export function drawGroups(db: DatabaseSync, seasonId: number, random: () => number = Math.random): void {
-  assertGroupFormat(mustGetSeason(db, seasonId));
-  const groups = listGroups(db, seasonId);
+export async function drawGroups(db: Db, seasonId: number, random: () => number = Math.random): Promise<void> {
+  assertGroupFormat(await mustGetSeason(db, seasonId));
+  const groups = await listGroups(db, seasonId);
   if (groups.length < 2) throw new LeagueError("Create at least 2 groups first.");
-  const teams = listTeams(db, seasonId);
+  const teams = await listTeams(db, seasonId);
   if (teams.length < groups.length * 2) {
     throw new LeagueError(`${groups.length} groups need at least ${groups.length * 2} teams (2 per group).`);
   }
@@ -185,24 +182,25 @@ export function drawGroups(db: DatabaseSync, seasonId: number, random: () => num
     const j = Math.floor(random() * (i + 1));
     [teams[i], teams[j]] = [teams[j], teams[i]];
   }
-  const update = db.prepare("UPDATE teams SET group_id = ? WHERE id = ?");
-  tx(db, () => teams.forEach((t, i) => update.run(groups[i % groups.length].id, t.id)));
+  await db.tx(async (t) => {
+    for (const [i, team] of teams.entries()) {
+      await t.run("UPDATE teams SET group_id = ? WHERE id = ?", [groups[i % groups.length].id, team.id]);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Teams
 // ---------------------------------------------------------------------------
 
-export function listTeams(db: DatabaseSync, seasonId: number): Team[] {
-  return db
-    .prepare("SELECT id, name, group_id FROM teams WHERE season_id = ? ORDER BY name")
-    .all(seasonId)
-    .map((r) => ({ id: Number(r.id), name: String(r.name), groupId: r.group_id == null ? null : Number(r.group_id) }));
+export async function listTeams(db: Db, seasonId: number): Promise<Team[]> {
+  const rows = await db.all("SELECT id, name, group_id FROM teams WHERE season_id = ? ORDER BY name", [seasonId]);
+  return rows.map((r) => ({ id: Number(r.id), name: String(r.name), groupId: r.group_id == null ? null : Number(r.group_id) }));
 }
 
-export function getTeam(db: DatabaseSync, teamId: number): (Team & { seasonId: number }) | null {
+export async function getTeam(db: Db, teamId: number): Promise<(Team & { seasonId: number }) | null> {
   if (!Number.isInteger(teamId)) return null;
-  const r = db.prepare("SELECT * FROM teams WHERE id = ?").get(teamId);
+  const r = await db.get("SELECT * FROM teams WHERE id = ?", [teamId]);
   if (!r) return null;
   return {
     id: Number(r.id),
@@ -212,97 +210,99 @@ export function getTeam(db: DatabaseSync, teamId: number): (Team & { seasonId: n
   };
 }
 
-export function mustGetTeam(db: DatabaseSync, teamId: number) {
-  const t = getTeam(db, teamId);
+export async function mustGetTeam(db: Db, teamId: number) {
+  const t = await getTeam(db, teamId);
   if (!t) throw new LeagueError("Team not found.");
   return t;
 }
 
 /** Add one or more teams (e.g. pasted one per line), optionally straight into a group. */
-export function addTeams(db: DatabaseSync, seasonId: number, names: string[], groupId: number | null = null): Team[] {
-  mustGetSeason(db, seasonId);
-  if (groupId != null && !groupInSeason(db, groupId, seasonId)) throw new LeagueError("Group not found.");
+export async function addTeams(db: Db, seasonId: number, names: string[], groupId: number | null = null): Promise<Team[]> {
+  await mustGetSeason(db, seasonId);
+  if (groupId != null && !(await groupInSeason(db, groupId, seasonId))) throw new LeagueError("Group not found.");
   const cleaned = names.map(cleanText).filter(Boolean);
   if (!cleaned.length) throw new LeagueError("Enter at least one team name.");
 
-  const seen = new Set(listTeams(db, seasonId).map((t) => cleanText(t.name).toLowerCase()));
-  const insert = db.prepare("INSERT INTO teams (season_id, name, group_id) VALUES (?, ?, ?)");
-  tx(db, () => {
+  const seen = new Set((await listTeams(db, seasonId)).map((t) => cleanText(t.name).toLowerCase()));
+  await db.tx(async (t) => {
     for (const raw of cleaned) {
       const name = requiredText(raw, "Team name");
       if (seen.has(name.toLowerCase())) throw new LeagueError(`"${name}" is already in this season.`);
       seen.add(name.toLowerCase());
-      insert.run(seasonId, name, groupId);
+      await t.run("INSERT INTO teams (season_id, name, group_id) VALUES (?, ?, ?)", [seasonId, name, groupId]);
     }
   });
   return listTeams(db, seasonId);
 }
 
-export function renameTeam(db: DatabaseSync, teamId: number, newName: string): void {
+export async function renameTeam(db: Db, teamId: number, newName: string): Promise<void> {
   const name = requiredText(newName, "Team name");
-  const team = mustGetTeam(db, teamId);
-  const clash = db
-    .prepare("SELECT 1 FROM teams WHERE season_id = ? AND name = ? AND id != ?")
-    .get(team.seasonId, name, teamId);
+  const team = await mustGetTeam(db, teamId);
+  const clash = await db.get("SELECT 1 FROM teams WHERE season_id = ? AND name = ? AND id != ?", [team.seasonId, name, teamId]);
   if (clash) throw new LeagueError(`"${name}" is already in this season.`);
-  db.prepare("UPDATE teams SET name = ? WHERE id = ?").run(name, teamId);
+  await db.run("UPDATE teams SET name = ? WHERE id = ?", [name, teamId]);
 }
 
-export function setTeamGroup(db: DatabaseSync, teamId: number, groupIdRaw: unknown): void {
-  const team = mustGetTeam(db, teamId);
+export async function setTeamGroup(db: Db, teamId: number, groupIdRaw: unknown): Promise<void> {
+  const team = await mustGetTeam(db, teamId);
   const groupId = optionalId(groupIdRaw);
-  if (groupId != null && !groupInSeason(db, groupId, team.seasonId)) throw new LeagueError("Group not found.");
-  db.prepare("UPDATE teams SET group_id = ? WHERE id = ?").run(groupId, teamId);
+  if (groupId != null && !(await groupInSeason(db, groupId, team.seasonId))) throw new LeagueError("Group not found.");
+  await db.run("UPDATE teams SET group_id = ? WHERE id = ?", [groupId, teamId]);
 }
 
-export function removeTeam(db: DatabaseSync, teamId: number): void {
-  const team = getTeam(db, teamId);
+export async function removeTeam(db: Db, teamId: number): Promise<void> {
+  const team = await getTeam(db, teamId);
   if (!team) return;
-  const n = Number(
-    (db.prepare("SELECT COUNT(*) AS n FROM matches WHERE home_team_id = ? OR away_team_id = ?").get(teamId, teamId) as Row).n,
-  );
+  const r = await db.get("SELECT COUNT(*) AS n FROM matches WHERE home_team_id = ? OR away_team_id = ?", [teamId, teamId]);
+  const n = Number(r?.n ?? 0);
   if (n > 0) {
     throw new LeagueError(`${team.name} has ${n} fixture${n === 1 ? "" : "s"}. Delete or regenerate the fixtures first.`);
   }
-  db.prepare("DELETE FROM teams WHERE id = ?").run(teamId); // also removes the squad
+  await db.run("DELETE FROM teams WHERE id = ?", [teamId]); // also removes the squad
 }
 
 // ---------------------------------------------------------------------------
 // Playing dates
 // ---------------------------------------------------------------------------
 
-export function listDates(db: DatabaseSync, seasonId: number): string[] {
-  return db
-    .prepare("SELECT date FROM playing_dates WHERE season_id = ? ORDER BY date")
-    .all(seasonId)
-    .map((r) => String(r.date));
+export async function listDates(db: Db, seasonId: number): Promise<string[]> {
+  const rows = await db.all("SELECT date FROM playing_dates WHERE season_id = ? ORDER BY date", [seasonId]);
+  return rows.map((r) => String(r.date));
 }
 
 /** Replace the season's playing dates with the given list (YYYY-MM-DD). */
-export function setPlayingDates(db: DatabaseSync, seasonId: number, dates: string[]): string[] {
-  mustGetSeason(db, seasonId);
+export async function setPlayingDates(db: Db, seasonId: number, dates: string[]): Promise<string[]> {
+  await mustGetSeason(db, seasonId);
   const unique = [...new Set(dates.map((d) => optionalDate(d)).filter((d): d is string => d != null))].sort();
-  const insert = db.prepare("INSERT INTO playing_dates (season_id, date) VALUES (?, ?)");
-  tx(db, () => {
-    db.prepare("DELETE FROM playing_dates WHERE season_id = ?").run(seasonId);
-    for (const d of unique) insert.run(seasonId, d);
+  await db.tx(async (t) => {
+    await t.run("DELETE FROM playing_dates WHERE season_id = ?", [seasonId]);
+    for (const d of unique) await t.run("INSERT INTO playing_dates (season_id, date) VALUES (?, ?)", [seasonId, d]);
   });
   return unique;
 }
 
 /** All teams grouped by season (newest season first), for "favourite team" pickers. */
-export function listTeamChoices(db: DatabaseSync): { season: string; teams: { id: number; name: string }[] }[] {
-  return listSeasons(db)
-    .map((s) => ({ season: s.name, teams: listTeams(db, s.id).map(({ id, name }) => ({ id, name })) }))
-    .filter((s) => s.teams.length > 0);
+export async function listTeamChoices(db: Db): Promise<{ season: string; teams: { id: number; name: string }[] }[]> {
+  const rows = await db.all(
+    `SELECT s.id AS season_id, s.name AS season_name, t.id, t.name
+       FROM seasons s JOIN teams t ON t.season_id = s.id
+      ORDER BY s.id DESC, t.name`,
+  );
+  const bySeason = new Map<number, { season: string; teams: { id: number; name: string }[] }>();
+  for (const r of rows) {
+    const sid = Number(r.season_id);
+    if (!bySeason.has(sid)) bySeason.set(sid, { season: String(r.season_name), teams: [] });
+    bySeason.get(sid)!.teams.push({ id: Number(r.id), name: String(r.name) });
+  }
+  return [...bySeason.values()];
 }
 
 /** Admin only: pin a season to the home page, or pass null to go back to automatic. */
-export function setPinnedSeason(db: DatabaseSync, acting: { role: string }, seasonId: number | null): void {
+export async function setPinnedSeason(db: Db, acting: { role: string }, seasonId: number | null): Promise<void> {
   if (acting.role !== "admin") throw new LeagueError("Only the admin can choose the home page season.");
-  if (seasonId != null) mustGetSeason(db, seasonId);
-  tx(db, () => {
-    db.prepare("UPDATE seasons SET pinned = 0 WHERE pinned = 1").run();
-    if (seasonId != null) db.prepare("UPDATE seasons SET pinned = 1 WHERE id = ?").run(seasonId);
+  if (seasonId != null) await mustGetSeason(db, seasonId);
+  await db.tx(async (t) => {
+    await t.run("UPDATE seasons SET pinned = 0 WHERE pinned = 1");
+    if (seasonId != null) await t.run("UPDATE seasons SET pinned = 1 WHERE id = ?", [seasonId]);
   });
 }

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
-import { LeagueError, type Row, cleanText, optionalId, requiredText, tx } from "./validate";
+import type { Db } from "./sql";
+import { LeagueError, type Row, cleanText, optionalId, requiredText } from "./validate";
 
 export type Role = "fan" | "official" | "admin";
 export const ROLE_LABEL: Record<Role, string> = { fan: "Fan", official: "Official", admin: "Admin" };
@@ -74,55 +74,58 @@ function validPassword(v: unknown): string {
 // Accounts
 // ---------------------------------------------------------------------------
 
-export function getUser(db: DatabaseSync, id: number): User | null {
-  const r = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+export async function getUser(db: Db, id: number): Promise<User | null> {
+  const r = await db.get("SELECT * FROM users WHERE id = ?", [id]);
   return r ? toUser(r) : null;
 }
 
-export function listUsers(db: DatabaseSync): User[] {
-  return db
-    .prepare("SELECT * FROM users ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'official' THEN 1 ELSE 2 END, name")
-    .all()
-    .map(toUser);
+export async function listUsers(db: Db): Promise<User[]> {
+  const rows = await db.all("SELECT * FROM users ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'official' THEN 1 ELSE 2 END, name");
+  return rows.map(toUser);
+}
+
+async function teamExists(db: Db, teamId: number): Promise<boolean> {
+  return Boolean(await db.get("SELECT 1 FROM teams WHERE id = ?", [teamId]));
 }
 
 /** New accounts are fans. The display name defaults to the username. */
-export function signUp(
-  db: DatabaseSync,
+export async function signUp(
+  db: Db,
   input: { username: unknown; password: unknown; name?: unknown; favouriteTeamId?: unknown },
-): User {
+): Promise<User> {
   const username = validUsername(input.username);
   const name = cleanText(input.name) ? requiredText(input.name, "Name", 60) : username;
   const password = validPassword(input.password);
-  if (db.prepare("SELECT 1 FROM users WHERE username = ?").get(username)) {
+  if (await db.get("SELECT 1 FROM users WHERE username = ?", [username])) {
     throw new LeagueError(`The username "${username}" is taken. Choose another, or sign in if it's yours.`);
   }
   const teamId = optionalId(input.favouriteTeamId);
-  if (teamId != null && !db.prepare("SELECT 1 FROM teams WHERE id = ?").get(teamId)) {
+  if (teamId != null && !(await teamExists(db, teamId))) {
     throw new LeagueError("That team doesn't exist.");
   }
-  const { lastInsertRowid } = db
-    .prepare("INSERT INTO users (username, name, password_hash, role, favourite_team_id) VALUES (?, ?, ?, 'fan', ?)")
-    .run(username, name, hashPassword(password), teamId);
-  return getUser(db, Number(lastInsertRowid))!;
+  const r = await db.get(
+    "INSERT INTO users (username, name, password_hash, role, favourite_team_id) VALUES (?, ?, ?, 'fan', ?) RETURNING *",
+    [username, name, hashPassword(password), teamId],
+  );
+  return toUser(r!);
 }
 
 /**
  * Checks username + password. Returns the user, or null if either is wrong
  * (deliberately not saying which).
  */
-export function authenticate(db: DatabaseSync, usernameRaw: unknown, password: unknown): User | null {
-  const r = db.prepare("SELECT * FROM users WHERE username = ?").get(normaliseUsername(usernameRaw));
+export async function authenticate(db: Db, usernameRaw: unknown, password: unknown): Promise<User | null> {
+  const r = await db.get("SELECT * FROM users WHERE username = ?", [normaliseUsername(usernameRaw)]);
   if (!r) {
     hashPassword(String(password ?? "")); // spend similar time so response speed doesn't reveal which usernames exist
     return null;
   }
   if (!verifyPassword(String(password ?? ""), String(r.password_hash))) return null;
-  return getUser(db, Number(r.id));
+  return toUser(r);
 }
 
-export function getAdmin(db: DatabaseSync): User | null {
-  const r = db.prepare("SELECT * FROM users WHERE role = 'admin'").get();
+export async function getAdmin(db: Db): Promise<User | null> {
+  const r = await db.get("SELECT * FROM users WHERE role = 'admin'");
   return r ? toUser(r) : null;
 }
 
@@ -133,50 +136,51 @@ export function getAdmin(db: DatabaseSync): User | null {
  * - a different admin exists: refused, unless `replace` is set, in which case
  *   the old admin becomes a fan and is signed out.
  */
-export function setUpAdmin(db: DatabaseSync, usernameRaw: unknown, password: unknown, opts: { replace?: boolean } = {}): User {
+export async function setUpAdmin(db: Db, usernameRaw: unknown, password: unknown, opts: { replace?: boolean } = {}): Promise<User> {
   const username = validUsername(usernameRaw);
   const hash = hashPassword(validPassword(password));
-  const current = getAdmin(db);
-  if (current && current.username !== username && !opts.replace) {
-    throw new LeagueError(
-      `"${current.username}" is already the admin, and there can only be one. ` +
-        `To make "${username}" the admin instead (and "${current.username}" a fan), add --replace.`,
-    );
-  }
-  const endSessions = (id: number) => db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
-  return tx(db, () => {
+  return db.tx(async (t) => {
+    const current = await getAdmin(t);
+    if (current && current.username !== username && !opts.replace) {
+      throw new LeagueError(
+        `"${current.username}" is already the admin, and there can only be one. ` +
+          `To make "${username}" the admin instead (and "${current.username}" a fan), add --replace.`,
+      );
+    }
+    const endSessions = (id: number) => t.run("DELETE FROM sessions WHERE user_id = ?", [id]);
     if (current && current.username !== username) {
-      db.prepare("UPDATE users SET role = 'fan' WHERE id = ?").run(current.id);
-      endSessions(current.id);
+      await t.run("UPDATE users SET role = 'fan' WHERE id = ?", [current.id]);
+      await endSessions(current.id);
     }
-    const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+    const existing = await t.get("SELECT id FROM users WHERE username = ?", [username]);
     if (existing) {
-      db.prepare("UPDATE users SET role = 'admin', password_hash = ? WHERE id = ?").run(hash, Number(existing.id));
-      endSessions(Number(existing.id)); // old sign-ins end with the old password
-      return getUser(db, Number(existing.id))!;
+      await t.run("UPDATE users SET role = 'admin', password_hash = ? WHERE id = ?", [hash, Number(existing.id)]);
+      await endSessions(Number(existing.id)); // old sign-ins end with the old password
+      return (await getUser(t, Number(existing.id)))!;
     }
-    const { lastInsertRowid } = db
-      .prepare("INSERT INTO users (username, name, password_hash, role) VALUES (?, ?, ?, 'admin')")
-      .run(username, username, hash);
-    return getUser(db, Number(lastInsertRowid))!;
+    const r = await t.get(
+      "INSERT INTO users (username, name, password_hash, role) VALUES (?, ?, ?, 'admin') RETURNING *",
+      [username, username, hash],
+    );
+    return toUser(r!);
   });
 }
 
-export function updateProfile(db: DatabaseSync, userId: number, input: { name: unknown; favouriteTeamId: unknown }): void {
+export async function updateProfile(db: Db, userId: number, input: { name: unknown; favouriteTeamId: unknown }): Promise<void> {
   const name = requiredText(input.name, "Name", 60);
   const teamId = optionalId(input.favouriteTeamId);
-  if (teamId != null && !db.prepare("SELECT 1 FROM teams WHERE id = ?").get(teamId)) {
+  if (teamId != null && !(await teamExists(db, teamId))) {
     throw new LeagueError("That team doesn't exist.");
   }
-  db.prepare("UPDATE users SET name = ?, favourite_team_id = ? WHERE id = ?").run(name, teamId, userId);
+  await db.run("UPDATE users SET name = ?, favourite_team_id = ? WHERE id = ?", [name, teamId, userId]);
 }
 
-export function changePassword(db: DatabaseSync, userId: number, current: unknown, next: unknown): void {
-  const r = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(userId);
+export async function changePassword(db: Db, userId: number, current: unknown, next: unknown): Promise<void> {
+  const r = await db.get("SELECT password_hash FROM users WHERE id = ?", [userId]);
   if (!r || !verifyPassword(String(current ?? ""), String(r.password_hash))) {
     throw new LeagueError("Your current password is not correct.");
   }
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(validPassword(next)), userId);
+  await db.run("UPDATE users SET password_hash = ? WHERE id = ?", [hashPassword(validPassword(next)), userId]);
 }
 
 // ---------------------------------------------------------------------------
@@ -188,8 +192,8 @@ function assertAdmin(acting: User) {
 }
 
 /** A non-admin account the admin may manage. */
-function managedUser(db: DatabaseSync, userId: number): User {
-  const target = getUser(db, userId);
+async function managedUser(db: Db, userId: number): Promise<User> {
+  const target = await getUser(db, userId);
   if (!target) throw new LeagueError("User not found.");
   if (target.role === "admin") {
     throw new LeagueError("The admin account can't be changed here. Use your Account page for your own details.");
@@ -203,9 +207,9 @@ function parseManagedRole(v: unknown): Role {
   return role;
 }
 
-function parseTeam(db: DatabaseSync, v: unknown): number | null {
+async function parseTeam(db: Db, v: unknown): Promise<number | null> {
   const teamId = optionalId(v);
-  if (teamId != null && !db.prepare("SELECT 1 FROM teams WHERE id = ?").get(teamId)) {
+  if (teamId != null && !(await teamExists(db, teamId))) {
     throw new LeagueError("That team doesn't exist.");
   }
   return teamId;
@@ -214,46 +218,54 @@ function parseTeam(db: DatabaseSync, v: unknown): number | null {
 export type ManagedUserInput = { username: unknown; name?: unknown; role?: unknown; favouriteTeamId?: unknown };
 
 /** The admin adds an account (fan or official) and sets its first password. */
-export function adminCreateUser(db: DatabaseSync, acting: User, input: ManagedUserInput & { password: unknown }): User {
+export async function adminCreateUser(db: Db, acting: User, input: ManagedUserInput & { password: unknown }): Promise<User> {
   assertAdmin(acting);
   const role = parseManagedRole(input.role);
-  const user = signUp(db, { username: input.username, name: input.name, password: input.password, favouriteTeamId: input.favouriteTeamId });
-  if (role !== "fan") db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, user.id);
-  return getUser(db, user.id)!;
+  const user = await signUp(db, { username: input.username, name: input.name, password: input.password, favouriteTeamId: input.favouriteTeamId });
+  if (role === "fan") return user;
+  const r = await db.get("UPDATE users SET role = ? WHERE id = ? RETURNING *", [role, user.id]);
+  return toUser(r!);
 }
 
 /** The admin edits an account's username, display name, role and favourite team. */
-export function adminUpdateUser(db: DatabaseSync, acting: User, userId: number, input: ManagedUserInput): User {
+export async function adminUpdateUser(db: Db, acting: User, userId: number, input: ManagedUserInput): Promise<User> {
   assertAdmin(acting);
-  const target = managedUser(db, userId);
+  const target = await managedUser(db, userId);
   const username = validUsername(input.username);
-  if (db.prepare("SELECT 1 FROM users WHERE username = ? AND id <> ?").get(username, userId)) {
+  if (await db.get("SELECT 1 FROM users WHERE username = ? AND id <> ?", [username, userId])) {
     throw new LeagueError(`The username "${username}" is taken.`);
   }
   const name = cleanText(input.name) ? requiredText(input.name, "Name", 60) : username;
   const role = parseManagedRole(input.role);
-  const teamId = parseTeam(db, input.favouriteTeamId);
-  db.prepare("UPDATE users SET username = ?, name = ?, role = ?, favourite_team_id = ? WHERE id = ?")
-    .run(username, name, role, teamId, userId);
-  // Losing official access takes effect straight away.
-  if (target.role === "official" && role === "fan") db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
-  return getUser(db, userId)!;
+  const teamId = await parseTeam(db, input.favouriteTeamId);
+  return db.tx(async (t) => {
+    const r = await t.get(
+      "UPDATE users SET username = ?, name = ?, role = ?, favourite_team_id = ? WHERE id = ? RETURNING *",
+      [username, name, role, teamId, userId],
+    );
+    // Losing official access takes effect straight away.
+    if (target.role === "official" && role === "fan") await t.run("DELETE FROM sessions WHERE user_id = ?", [userId]);
+    return toUser(r!);
+  });
 }
 
 /** The admin sets a new password for an account (e.g. it was forgotten). The user is signed out everywhere. */
-export function adminResetPassword(db: DatabaseSync, acting: User, userId: number, password: unknown): User {
+export async function adminResetPassword(db: Db, acting: User, userId: number, password: unknown): Promise<User> {
   assertAdmin(acting);
-  const target = managedUser(db, userId);
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(validPassword(password)), userId);
-  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+  const target = await managedUser(db, userId);
+  const hash = hashPassword(validPassword(password));
+  await db.tx(async (t) => {
+    await t.run("UPDATE users SET password_hash = ? WHERE id = ?", [hash, userId]);
+    await t.run("DELETE FROM sessions WHERE user_id = ?", [userId]);
+  });
   return target;
 }
 
 /** The admin removes an account; its sign-ins end with it. */
-export function adminDeleteUser(db: DatabaseSync, acting: User, userId: number): User {
+export async function adminDeleteUser(db: Db, acting: User, userId: number): Promise<User> {
   assertAdmin(acting);
-  const target = managedUser(db, userId);
-  db.prepare("DELETE FROM users WHERE id = ?").run(userId); // sessions cascade
+  const target = await managedUser(db, userId);
+  await db.run("DELETE FROM users WHERE id = ?", [userId]); // sessions cascade
   return target;
 }
 
@@ -264,29 +276,28 @@ export function adminDeleteUser(db: DatabaseSync, acting: User, userId: number):
 const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 
 /** Creates a session and returns the raw token for the cookie (only its hash is stored). */
-export function createSession(db: DatabaseSync, userId: number, ttlSeconds = SESSION_TTL_SECONDS): string {
+export async function createSession(db: Db, userId: number, ttlSeconds = SESSION_TTL_SECONDS): Promise<string> {
   const token = crypto.randomBytes(32).toString("base64url");
-  const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
-  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Math.floor(Date.now() / 1000)); // tidy up
-  db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)").run(sha256(token), userId, expires);
+  const now = Math.floor(Date.now() / 1000);
+  await db.run("DELETE FROM sessions WHERE expires_at < ?", [now]); // tidy up
+  await db.run("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)", [sha256(token), userId, now + ttlSeconds]);
   return token;
 }
 
-export function sessionUser(db: DatabaseSync, token: string | undefined): User | null {
+export async function sessionUser(db: Db, token: string | undefined): Promise<User | null> {
   if (!token) return null;
-  const r = db
-    .prepare(
-      `SELECT u.*, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
-    )
-    .get(sha256(token));
+  const r = await db.get(
+    "SELECT u.*, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
+    [sha256(token)],
+  );
   if (!r) return null;
   if (Number(r.expires_at) < Date.now() / 1000) {
-    deleteSession(db, token);
+    await deleteSession(db, token);
     return null;
   }
   return toUser(r);
 }
 
-export function deleteSession(db: DatabaseSync, token: string | undefined): void {
-  if (token) db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(sha256(token));
+export async function deleteSession(db: Db, token: string | undefined): Promise<void> {
+  if (token) await db.run("DELETE FROM sessions WHERE token_hash = ?", [sha256(token)]);
 }

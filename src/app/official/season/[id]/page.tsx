@@ -15,8 +15,8 @@ export default async function TeamsAndGroups({ params }: { params: Promise<{ id:
   const db = getDb();
   const isGroups = season.format === "groups";
   // Groups only matter in the group-stage format.
-  const groups = isGroups ? listGroups(db, season.id) : [];
-  const teams = listTeams(db, season.id);
+  const groups = isGroups ? (await listGroups(db, season.id)) : [];
+  const teams = await listTeams(db, season.id);
 
   return (
     <div className="space-y-6">
@@ -50,7 +50,7 @@ export default async function TeamsAndGroups({ params }: { params: Promise<{ id:
             <TeamList
               teams={teams}
               groups={groups}
-              squadSize={countPlayersByTeam(db, season.id)}
+              squadSize={await countPlayersByTeam(db, season.id)}
               squadHref={(id) => `/official/season/${season.id}/teams/${id}`}
             />
           </div>

@@ -11,8 +11,8 @@ export const metadata: Metadata = { title: "Users & roles" };
 export default async function UsersPage() {
   const me = await requireAdmin("/official/users");
   const db = getDb();
-  const users = listUsers(db);
-  const teams = listTeamChoices(db);
+  const users = await listUsers(db);
+  const teams = await listTeamChoices(db);
   const officials = users.filter((u) => u.role === "official").length;
   const fans = users.filter((u) => u.role === "fan").length;
 

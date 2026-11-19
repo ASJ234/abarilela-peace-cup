@@ -19,10 +19,10 @@ export const metadata: Metadata = { title: "Match details" };
 export default async function MatchEditor({ params }: { params: Promise<{ id: string; matchId: string }> }) {
   const season = await loadSeasonForOfficial(params);
   const db = getDb();
-  const m = getMatch(db, Number((await params).matchId));
+  const m = await getMatch(db, Number((await params).matchId));
   if (!m || m.seasonId !== season.id) notFound();
 
-  const events = listEvents(db, m.id);
+  const events = await listEvents(db, m.id);
   const recorded = goalsRecorded(events, m);
   const mismatch = m.played && (recorded.home !== m.homeScore || recorded.away !== m.awayScore);
   const squadHref = (teamId: number) => `/official/season/${season.id}/teams/${teamId}`;
@@ -69,8 +69,8 @@ export default async function MatchEditor({ params }: { params: Promise<{ id: st
         <div className="border-t border-border pt-4">
           <EventForm
             matchId={m.id}
-            home={{ ...m.home, players: listPlayers(db, m.home.id) }}
-            away={{ ...m.away, players: listPlayers(db, m.away.id) }}
+            home={{ ...m.home, players: (await listPlayers(db, m.home.id)) }}
+            away={{ ...m.away, players: (await listPlayers(db, m.away.id)) }}
           />
           <p className="mt-3 text-xs text-muted">
             Missing a player? Edit the <Link href={squadHref(m.home.id)} className="underline">{m.home.name}</Link> or{" "}
@@ -84,7 +84,7 @@ export default async function MatchEditor({ params }: { params: Promise<{ id: st
           <Alert>🔒 {PLAYED_MATCH_LOCKED}</Alert>
         ) : (
           <ActionForm action={updateMatchAction} fields={{ matchId: m.id }} className="space-y-3">
-            <MatchFields teams={listTeams(db, season.id)} groups={listGroups(db, season.id)} format={season.format} match={m} />
+            <MatchFields teams={await listTeams(db, season.id)} groups={await listGroups(db, season.id)} format={season.format} match={m} />
             <SubmitButton className="w-full sm:w-auto">Save details</SubmitButton>
           </ActionForm>
         )}

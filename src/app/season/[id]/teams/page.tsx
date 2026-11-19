@@ -16,9 +16,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function TeamsPage({ params }: Props) {
   const season = await loadSeason(params);
   const db = getDb();
-  const teams = listTeams(db, season.id);
-  const groups = listGroups(db, season.id);
-  const squadSize = countPlayersByTeam(db, season.id);
+  const teams = await listTeams(db, season.id);
+  const groups = await listGroups(db, season.id);
+  const squadSize = await countPlayersByTeam(db, season.id);
 
   if (teams.length === 0) return <EmptyState icon="👥">No teams have been added yet.</EmptyState>;
 

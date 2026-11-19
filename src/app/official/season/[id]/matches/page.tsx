@@ -15,9 +15,9 @@ export const metadata: Metadata = { title: "Matches & results" };
 export default async function MatchesPage({ params }: { params: Promise<{ id: string }> }) {
   const season = await loadSeasonForOfficial(params);
   const db = getDb();
-  const teams = listTeams(db, season.id);
-  const groups = listGroups(db, season.id);
-  const matches = listMatches(db, season.id);
+  const teams = await listTeams(db, season.id);
+  const groups = await listGroups(db, season.id);
+  const matches = await listMatches(db, season.id);
   const played = matches.filter((m) => m.played).length;
 
   return (

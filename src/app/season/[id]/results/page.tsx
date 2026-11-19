@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ResultsPage({ params }: Props) {
   const season = await loadSeason(params);
-  const played = listMatches(getDb(), season.id).filter((m) => m.played);
+  const played = (await listMatches(getDb(), season.id)).filter((m) => m.played);
   return (
     <MatchList
       matches={played}

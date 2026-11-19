@@ -18,13 +18,13 @@ export default async function StatsPage({ params }: Props) {
   const toRows = (list: PlayerStat[]): StatRow[] =>
     list.map((s) => ({ key: s.playerId, name: s.name, teamName: s.teamName, teamHref: teamHref(s.teamId), values: [s.count] }));
 
-  const cards = discipline(db, season.id);
+  const cards = await discipline(db, season.id);
   const reds = cards.filter((c) => c.red > 0);
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <StatTable title="⚽ Top scorers" columns={["Goals"]} rows={toRows(topScorers(db, season.id))} emptyText="No goals recorded yet." />
-      <StatTable title="🎯 Top assists" columns={["Assists"]} rows={toRows(topAssists(db, season.id))} emptyText="No assists recorded yet." />
+      <StatTable title="⚽ Top scorers" columns={["Goals"]} rows={toRows(await topScorers(db, season.id))} emptyText="No goals recorded yet." />
+      <StatTable title="🎯 Top assists" columns={["Assists"]} rows={toRows(await topAssists(db, season.id))} emptyText="No assists recorded yet." />
       <StatTable
         title="🟥 Red cards"
         columns={["Red"]}

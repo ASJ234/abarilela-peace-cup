@@ -1,7 +1,7 @@
 import { SeasonNav, SeasonSwitcher } from "@/components/league";
 import { PageHeader } from "@/components/ui";
 import { getDb } from "@/lib/db";
-import { seasonNumbers } from "@/lib/insights";
+import { countsFor, seasonCounts } from "@/lib/insights";
 import { listSeasons } from "@/lib/league";
 import { FORMAT_LABEL } from "@/lib/types";
 import { loadSeason } from "./data";
@@ -15,8 +15,9 @@ export default async function SeasonLayout({
 }) {
   const season = await loadSeason(params);
   const db = getDb();
-  const seasons = listSeasons(db).map((s) => {
-    const n = seasonNumbers(db, s.id);
+  const [list, counts] = await Promise.all([listSeasons(db), seasonCounts(db)]);
+  const seasons = list.map((s) => {
+    const n = countsFor(counts, s.id);
     return { id: s.id, name: s.name, format: s.format, teams: n.teams, played: n.played, matches: n.matches };
   });
 

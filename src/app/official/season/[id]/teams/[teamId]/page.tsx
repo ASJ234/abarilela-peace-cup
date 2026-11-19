@@ -12,9 +12,9 @@ export const metadata: Metadata = { title: "Squad" };
 export default async function SquadPage({ params }: { params: Promise<{ id: string; teamId: string }> }) {
   const season = await loadSeasonForOfficial(params);
   const db = getDb();
-  const team = getTeam(db, Number((await params).teamId));
+  const team = await getTeam(db, Number((await params).teamId));
   if (!team || team.seasonId !== season.id) notFound();
-  const squad = squadWithStats(db, team.id);
+  const squad = await squadWithStats(db, team.id);
 
   return (
     <div className="space-y-6">

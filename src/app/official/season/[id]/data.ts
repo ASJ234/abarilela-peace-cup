@@ -7,7 +7,7 @@ import { requireOfficial } from "../../access";
 export async function loadSeasonForOfficial(params: Promise<{ id: string }>) {
   const { id } = await params;
   await requireOfficial(`/official/season/${id}`);
-  const season = getSeason(getDb(), Number(id));
+  const season = await getSeason(getDb(), Number(id));
   if (!season) notFound();
   return season;
 }

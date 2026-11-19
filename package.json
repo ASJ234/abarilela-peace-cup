@@ -8,17 +8,21 @@
     "start": "node --no-warnings=ExperimentalWarning node_modules/next/dist/bin/next start",
     "lint": "eslint",
     "test": "node --no-warnings=ExperimentalWarning --import tsx --test test/*.test.ts",
-    "seed": "node --no-warnings=ExperimentalWarning --import tsx scripts/seed.ts",
-    "admin": "node --no-warnings=ExperimentalWarning --import tsx scripts/admin.ts"
+    "seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
+    "admin": "node --env-file-if-exists=.env.local --import tsx scripts/admin.ts",
+    "db:copy-sqlite": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env.local --import tsx scripts/copy-sqlite-to-postgres.ts"
   },
   "dependencies": {
     "next": "16.4.6",
+    "pg": "8.16.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.7",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^22.20.5",
+    "@types/pg": "8.15.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

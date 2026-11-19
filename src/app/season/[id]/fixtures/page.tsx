@@ -13,8 +13,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function FixturesPage({ params }: Props) {
   const season = await loadSeason(params);
   const db = getDb();
-  const upcoming = listMatches(db, season.id).filter((m) => !m.played);
-  const any = fixtureCount(db, season.id) > 0;
+  const upcoming = (await listMatches(db, season.id)).filter((m) => !m.played);
+  const any = (await fixtureCount(db, season.id)) > 0;
 
   return (
     <MatchList

@@ -46,7 +46,7 @@ export default async function AccountPage() {
             {/* key: remount after save so the form reset shows the saved team (see SquadEditor) */}
             <Select key={me.favouriteTeamId ?? ""} name="favouriteTeamId" defaultValue={me.favouriteTeamId ?? ""}>
               <option value="">No favourite</option>
-              <TeamOptions teams={listTeamChoices(getDb())} />
+              <TeamOptions teams={await listTeamChoices(getDb())} />
             </Select>
           </Field>
           <SubmitButton className="w-full sm:w-auto">Save profile</SubmitButton>

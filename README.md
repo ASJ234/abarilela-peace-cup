@@ -4,8 +4,8 @@ A league and tournament management platform in the style of a football league. O
 teams and squads, put teams in groups, enter playing dates and generate fixtures. They then record
 results, goals, assists and cards. The site keeps the tables and player stats up to date.
 
-Built with **Next.js 16** (App Router, Server Actions), **Tailwind CSS 4** and **SQLite** using Node's
-built-in `node:sqlite`, so there is no database server to install and no native module to compile.
+Built with **Next.js 16** (App Router, Server Actions), **Tailwind CSS 4** and **Postgres** hosted on
+**Supabase** (through the `pg` driver; the app has its own sign-in and doesn't use Supabase Auth).
 
 ## Features
 
@@ -89,18 +89,29 @@ The home page shows:
 
 **Safeguards:** you can't remove a team that still has fixtures, or a player with recorded goals or
 cards. Fixtures can't be regenerated once results exist unless you clear them, which asks for
-confirmation first. A match's teams can't be changed once goals or cards are recorded, except to
-swap home and away; the score swaps with them.
+confirmation first. A played match (one with a score) is locked: its teams, date, kick-off, venue and
+stage can't be changed until the score is cleared. On an unplayed match, the teams can't be changed
+once goals or cards are recorded, except to swap home and away.
 
 ## Getting started
 
-Requires **Node.js 22.13 or newer**.
+Requires **Node.js 22.13 or newer** and a **Supabase** project (the free plan is fine).
+
+1. **Create the tables.** In the Supabase dashboard, open **SQL Editor** and run each file in
+   [`supabase/migrations/`](supabase/migrations) in name order: paste the whole file, then **Run**.
+   They're safe to run again.
+2. **Connect the app.** Copy `.env.example` to `.env.local` and set `DATABASE_URL` to your
+   project's connection string (dashboard → **Connect**), with your database password filled in.
+3. **Install and start:**
 
 ```bash
 npm install
 npm run admin -- <username> <password>   # create your admin account
 npm run dev                              # http://localhost:3000
 ```
+
+If the tables are missing, the app and the scripts stop with a message saying which ones, instead
+of failing on the first page.
 
 Then **Sign in** with that username and password. The site has **exactly one admin**:
 
@@ -129,18 +140,34 @@ matter) and a password of at least 8 characters. No email is collected. Password
 scrypt, and sessions are stored in the database as hashes and last 30 days. After 5 wrong passwords,
 that username is locked for 10 minutes. Demoting an official signs them out.
 
+### The database
+
+- **Schema changes** are SQL files in `supabase/migrations/`, named `<timestamp>_<what>.sql`. The app
+  never changes the schema itself: when a new file arrives, run it in the SQL Editor. Never edit a
+  file that has been run; add a new one with a later timestamp.
+- **Row-level security** is on for every table with no policies. The app connects as the database
+  owner, so it isn't affected, but Supabase's public API keys can't read or change anything (for
+  example users' password hashes).
+- **Starting over:** [`supabase/reset_data.sql`](supabase/reset_data.sql) deletes every season and
+  everything in it, keeping user accounts. It has a commented-out line that also removes the
+  accounts. There's no undo, so download a backup first (dashboard → **Database → Backups**).
+- **Moving from the old SQLite version:** after creating the tables, run `npm run db:copy-sqlite`.
+  It copies everything from `data/league.db` (or `DB_FILE`) into Supabase, keeping ids and
+  password hashes, so everyone can still sign in. It only copies into empty tables and does it
+  all in one transaction, so it never overwrites anything. The SQLite file is left as a backup.
+- **Connections:** the connection is always encrypted. Set `DATABASE_SSL_CA` to Supabase's CA
+  certificate to also verify the server (see `.env.example`).
+
 ### Production
 
 ```bash
 npm run build
-npm run admin -- <username> <password>   # once, on the server
+npm run admin -- <username> <password>   # once
 npm start
 ```
 
-All data lives in one file, `data/league.db` (change it with `DB_FILE`). Back it up by copying that
-file. The database upgrades itself automatically when a new version of the app starts. Host the app
-on a server with a persistent disk (a VPS, Railway, Render with a disk, Fly.io with a volume).
-Serverless hosts such as Vercel have no persistent filesystem.
+The data lives in Supabase, so the app needs no disk of its own and can run on any Node host,
+serverless ones such as Vercel included (use the transaction pooler connection string there).
 
 ## Scripts
 
@@ -149,9 +176,10 @@ Serverless hosts such as Vercel have no persistent filesystem.
 | `npm run dev`    | Start the development server                                   |
 | `npm run build`  | Production build                                               |
 | `npm start`      | Run the production build                                       |
-| `npm test`       | Unit and integration tests (fixtures, scheduling, tables, groups, squads, events, stats, migrations) |
+| `npm test`       | Unit and integration tests against an in-memory Postgres (PGlite) built from `supabase/migrations`, so no database server is needed |
 | `npm run seed`   | Add demo seasons                                               |
 | `npm run admin -- <user> <pass> [--replace]` | Create the one admin, reset its password, or hand the role over |
+| `npm run db:copy-sqlite` | One-off: copy the old SQLite `data/league.db` into Supabase |
 | `npm run lint`   | ESLint                                                         |
 
 ## Project layout
@@ -167,11 +195,12 @@ src/
     league.ts            seasons, groups, teams, playing dates
     matches.ts           fixture CRUD, generation, results, match events, group tables
     players.ts           squads and player statistics
-    schema.ts            versioned SQLite migrations
+    schema.ts            reads supabase/migrations; checks the tables exist
+    sql.ts / pg.ts       small async database interface (`?` placeholders, transactions); pg pool for Supabase
     validate.ts          input validation helpers, LeagueError
     users.ts             accounts, roles, password hashing, sessions
     insights.ts          home-page numbers: records, fair play, a team's snapshot, upcoming matches
-    db.ts / auth.ts      database connection; sign-in cookies, current user, lock-out
+    db.ts / auth.ts      the app's shared connection; sign-in cookies, current user, lock-out
 
   components/
     ui/                generic building blocks, no football knowledge (reuse anywhere)
@@ -193,8 +222,13 @@ src/
     season/[id]/         public: table, fixtures, results, stats, teams, match pages
     signin/ signup/ account/   accounts
     official/            seasons, users & roles, per-season tabs (teams & groups, schedule, matches, settings)
-test/                  node:test suite
-scripts/seed.ts        demo data
+supabase/
+  migrations/          the schema as SQL files, run in the Supabase SQL Editor in name order
+  reset_data.sql       delete all league data, keeping accounts
+test/                  node:test suite (pglite.ts: in-memory Postgres for the tests)
+scripts/
+  seed.ts admin.ts     demo data; the one admin account
+  copy-sqlite-to-postgres.ts, sqlite/   one-off copy from the old SQLite database
 ```
 
 **Conventions**

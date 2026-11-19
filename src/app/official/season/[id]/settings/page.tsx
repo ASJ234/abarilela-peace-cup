@@ -14,8 +14,8 @@ export const metadata: Metadata = { title: "Season settings" };
 export default async function SettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const season = await loadSeasonForOfficial(params);
   const db = getDb();
-  const fixtures = leagueFixtureCount(db, season.id);
-  const featured = featuredSeason(db);
+  const fixtures = await leagueFixtureCount(db, season.id);
+  const featured = await featuredSeason(db);
   const me = await getCurrentUser();
   return (
     <div className="space-y-6">

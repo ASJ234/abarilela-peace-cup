@@ -13,7 +13,7 @@ type Props = { params: Promise<{ id: string; teamId: string }> };
 
 async function load(params: Props["params"]) {
   const season = await loadSeason(params);
-  const team = getTeam(getDb(), Number((await params).teamId));
+  const team = await getTeam(getDb(), Number((await params).teamId));
   if (!team || team.seasonId !== season.id) notFound();
   return { season, team };
 }
@@ -25,8 +25,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function TeamPage({ params }: Props) {
   const { season, team } = await load(params);
   const db = getDb();
-  const squad = squadWithStats(db, team.id);
-  const group = season.format === "groups" ? listGroups(db, season.id).find((g) => g.id === team.groupId) : undefined;
+  const squad = await squadWithStats(db, team.id);
+  const group = season.format === "groups" ? (await listGroups(db, season.id)).find((g) => g.id === team.groupId) : undefined;
 
   return (
     <div className="space-y-6">
@@ -77,7 +77,7 @@ export default async function TeamPage({ params }: Props) {
       <section>
         <h3 className="mb-2 font-bold">Matches</h3>
         <MatchList
-          matches={listMatches(db, season.id, { teamId: team.id })}
+          matches={await listMatches(db, season.id, { teamId: team.id })}
           hrefFor={(m) => `/season/${season.id}/match/${m.id}`}
           emptyText="No matches scheduled yet."
         />

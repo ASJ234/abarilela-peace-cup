@@ -4,9 +4,8 @@ import { SeasonForm } from "@/components/official";
 import { Badge, EmptyState, LinkButton, PageHeader, Section } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { listGroups, listSeasons, listTeams } from "@/lib/league";
-import { featuredSeason } from "@/lib/insights";
-import { fixtureCount, resultCount } from "@/lib/matches";
+import { countsFor, featuredSeason, seasonCounts } from "@/lib/insights";
+import { listSeasons } from "@/lib/league";
 import { FORMAT_LABEL } from "@/lib/types";
 import { canManageLeague } from "@/lib/users";
 
@@ -31,15 +30,13 @@ export default async function OfficialHome() {
   }
 
   const db = getDb();
-  const seasons = listSeasons(db).map((s) => ({
-    ...s,
-    teams: listTeams(db, s.id).length,
-    groups: listGroups(db, s.id).length,
-    fixtures: fixtureCount(db, s.id),
-    results: resultCount(db, s.id),
-  }));
+  const [list, counts] = await Promise.all([listSeasons(db), seasonCounts(db)]);
+  const seasons = list.map((s) => {
+    const n = countsFor(counts, s.id);
+    return { ...s, teams: n.teams, groups: n.groups, fixtures: n.matches, results: n.played };
+  });
 
-  const featured = featuredSeason(db);
+  const featured = await featuredSeason(db);
 
   return (
     <div className="space-y-6">

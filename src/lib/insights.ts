@@ -1,8 +1,7 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { Db } from "./sql";
 import { getTeam, listSeasons } from "./league";
 import { getTables, listMatches } from "./matches";
 import type { Match, Season, StandingRow } from "./types";
-import type { Row } from "./validate";
 
 /** Headline numbers for a season. */
 export type SeasonNumbers = {
@@ -16,23 +15,54 @@ export type SeasonNumbers = {
   red: number;
 };
 
-export function seasonNumbers(db: DatabaseSync, seasonId: number): SeasonNumbers {
-  const one = (sql: string) => Number((db.prepare(sql).get(seasonId) as Row).n ?? 0);
-  const played = one("SELECT COUNT(*) AS n FROM matches WHERE season_id = ? AND home_score IS NOT NULL");
-  const goals = one("SELECT COALESCE(SUM(home_score + away_score), 0) AS n FROM matches WHERE season_id = ? AND home_score IS NOT NULL");
-  const cards = (type: string) =>
-    one(`SELECT COUNT(*) AS n FROM match_events e JOIN matches m ON m.id = e.match_id WHERE m.season_id = ? AND e.type = '${type}'`);
+export async function seasonNumbers(db: Db, seasonId: number): Promise<SeasonNumbers> {
+  // One round trip for every number.
+  const r = await db.get(
+    `SELECT
+       (SELECT COUNT(*) FROM teams WHERE season_id = $1) AS teams,
+       (SELECT COUNT(*) FROM players p JOIN teams t ON t.id = p.team_id WHERE t.season_id = $1) AS players,
+       (SELECT COUNT(*) FROM matches WHERE season_id = $1) AS matches,
+       (SELECT COUNT(*) FROM matches WHERE season_id = $1 AND home_score IS NOT NULL) AS played,
+       (SELECT COALESCE(SUM(home_score + away_score), 0) FROM matches WHERE season_id = $1 AND home_score IS NOT NULL) AS goals,
+       (SELECT COUNT(*) FROM match_events e JOIN matches m ON m.id = e.match_id WHERE m.season_id = $1 AND e.type = 'yellow') AS yellow,
+       (SELECT COUNT(*) FROM match_events e JOIN matches m ON m.id = e.match_id WHERE m.season_id = $1 AND e.type = 'red') AS red`,
+    [seasonId],
+  );
+  const n = (k: string) => Number(r?.[k] ?? 0);
+  const played = n("played");
+  const goals = n("goals");
   return {
-    teams: one("SELECT COUNT(*) AS n FROM teams WHERE season_id = ?"),
-    players: one("SELECT COUNT(*) AS n FROM players p JOIN teams t ON t.id = p.team_id WHERE t.season_id = ?"),
-    matches: one("SELECT COUNT(*) AS n FROM matches WHERE season_id = ?"),
+    teams: n("teams"),
+    players: n("players"),
+    matches: n("matches"),
     played,
     goals,
     goalsPerMatch: played ? Math.round((goals / played) * 10) / 10 : 0,
-    yellow: cards("yellow"),
-    red: cards("red"),
+    yellow: n("yellow"),
+    red: n("red"),
   };
 }
+
+/** Per-season counts for season lists (switcher, official panel, competitions), in one query. */
+export type SeasonCounts = { teams: number; groups: number; matches: number; played: number };
+
+export async function seasonCounts(db: Db): Promise<Map<number, SeasonCounts>> {
+  const rows = await db.all(
+    `SELECT s.id,
+       (SELECT COUNT(*) FROM teams t WHERE t.season_id = s.id) AS teams,
+       (SELECT COUNT(*) FROM league_groups g WHERE g.season_id = s.id) AS groups,
+       (SELECT COUNT(*) FROM matches m WHERE m.season_id = s.id) AS matches,
+       (SELECT COUNT(*) FROM matches m WHERE m.season_id = s.id AND m.home_score IS NOT NULL) AS played
+     FROM seasons s`,
+  );
+  return new Map(rows.map((r) => [
+    Number(r.id),
+    { teams: Number(r.teams), groups: Number(r.groups), matches: Number(r.matches), played: Number(r.played) },
+  ]));
+}
+
+const NO_COUNTS: SeasonCounts = { teams: 0, groups: 0, matches: 0, played: 0 };
+export const countsFor = (counts: Map<number, SeasonCounts>, seasonId: number) => counts.get(seasonId) ?? NO_COUNTS;
 
 /** Local date and time as "YYYY-MM-DD" and "HH:MM" (server time zone). */
 function localNow(now: Date) {
@@ -85,16 +115,16 @@ export type FairPlayRow = { teamId: number; name: string; yellow: number; red: n
  * Fair Play ranking: 1 point per yellow, 3 per red; fewest points wins.
  * Only teams that have played are ranked.
  */
-export function fairPlay(db: DatabaseSync, seasonId: number): FairPlayRow[] {
-  const rows = db
-    .prepare(
-      `SELECT t.id, t.name,
-         (SELECT COUNT(*) FROM match_events e WHERE e.team_id = t.id AND e.type = 'yellow') AS yellow,
-         (SELECT COUNT(*) FROM match_events e WHERE e.team_id = t.id AND e.type = 'red') AS red,
-         (SELECT COUNT(*) FROM matches m WHERE (m.home_team_id = t.id OR m.away_team_id = t.id) AND m.home_score IS NOT NULL) AS played
-       FROM teams t WHERE t.season_id = ?`,
-    )
-    .all(seasonId)
+export async function fairPlay(db: Db, seasonId: number): Promise<FairPlayRow[]> {
+  const raw = await db.all(
+    `SELECT t.id, t.name,
+       (SELECT COUNT(*) FROM match_events e WHERE e.team_id = t.id AND e.type = 'yellow') AS yellow,
+       (SELECT COUNT(*) FROM match_events e WHERE e.team_id = t.id AND e.type = 'red') AS red,
+       (SELECT COUNT(*) FROM matches m WHERE (m.home_team_id = t.id OR m.away_team_id = t.id) AND m.home_score IS NOT NULL) AS played
+     FROM teams t WHERE t.season_id = ?`,
+    [seasonId],
+  );
+  const rows = raw
     .map((r) => {
       const yellow = Number(r.yellow);
       const red = Number(r.red);
@@ -114,11 +144,11 @@ export type TeamSnapshot = {
   last: Match | null;
 };
 
-export function teamSnapshot(db: DatabaseSync, teamId: number, season: Season): TeamSnapshot | null {
-  const team = getTeam(db, teamId);
+export async function teamSnapshot(db: Db, teamId: number, season: Season): Promise<TeamSnapshot | null> {
+  const team = await getTeam(db, teamId);
   if (!team || team.seasonId !== season.id) return null;
-  const table = getTables(db, season).find((t) => t.rows.some((r) => r.teamId === teamId));
-  const ms = listMatches(db, season.id, { teamId });
+  const [tables, ms] = await Promise.all([getTables(db, season), listMatches(db, season.id, { teamId })]);
+  const table = tables.find((t) => t.rows.some((r) => r.teamId === teamId));
   return {
     team: { id: team.id, name: team.name, seasonId: team.seasonId },
     season,
@@ -144,35 +174,33 @@ export type Featured = { season: Season; reason: FeaturedReason };
  * 3. otherwise the season with the most recent result (e.g. just finished);
  * 4. otherwise the newest season.
  */
-export function featuredSeason(db: DatabaseSync, now: Date = new Date()): Featured | null {
-  const seasons = listSeasons(db); // newest first
+export async function featuredSeason(db: Db, now: Date = new Date()): Promise<Featured | null> {
+  const seasons = await listSeasons(db); // newest first
   if (seasons.length === 0) return null;
 
   const pinned = seasons.find((s) => s.pinned);
   if (pinned) return { season: pinned, reason: "pinned" };
 
   const t = localNow(now);
-  const next = db
-    .prepare(
-      `SELECT season_id, MIN(date || ' ' || COALESCE(kickoff, '00:00')) AS at
-         FROM matches
-        WHERE home_score IS NULL AND date IS NOT NULL
-          AND (date > ? OR (date = ? AND (kickoff IS NULL OR kickoff > ?)))
-        GROUP BY season_id
-        ORDER BY at, season_id DESC
-        LIMIT 1`,
-    )
-    .get(t.date, t.date, t.time);
+  const next = await db.get(
+    `SELECT season_id, MIN(date || ' ' || COALESCE(kickoff, '00:00')) AS at
+       FROM matches
+      WHERE home_score IS NULL AND date IS NOT NULL
+        AND (date > ? OR (date = ? AND (kickoff IS NULL OR kickoff > ?)))
+      GROUP BY season_id
+      ORDER BY at, season_id DESC
+      LIMIT 1`,
+    [t.date, t.date, t.time],
+  );
   if (next) return { season: seasons.find((s) => s.id === Number(next.season_id))!, reason: "next-match" };
 
-  const last = db
-    .prepare(
-      `SELECT season_id FROM matches
-        WHERE home_score IS NOT NULL
-        ORDER BY date IS NULL, date DESC, kickoff DESC, id DESC
-        LIMIT 1`,
-    )
-    .get();
+  // NULLS LAST: Postgres puts NULLs first when sorting DESC (SQLite put them last).
+  const last = await db.get(
+    `SELECT season_id FROM matches
+      WHERE home_score IS NOT NULL
+      ORDER BY date IS NULL, date DESC, kickoff DESC NULLS LAST, id DESC
+      LIMIT 1`,
+  );
   if (last) return { season: seasons.find((s) => s.id === Number(last.season_id))!, reason: "latest-result" };
 
   return { season: seasons[0], reason: "newest" };

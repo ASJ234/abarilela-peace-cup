@@ -1,25 +1,34 @@
 import "server-only";
-import fs from "node:fs";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { migrate } from "./schema";
+import pg from "pg";
+import { poolConfig, poolDb } from "./pg";
+import { assertSchema } from "./schema";
+import type { Db } from "./sql";
 
 /**
- * One shared SQLite connection (Node's built-in driver, no native build).
- * It is cached on globalThis so dev-mode hot reloads don't open a new handle each time.
- * Pending migrations are checked on every call (a single PRAGMA read), so a
- * long-running server picks up schema changes from new code without a restart.
+ * One shared connection pool to Postgres (Supabase), cached on globalThis so
+ * dev-mode hot reloads don't open new connections each time. Before the first
+ * query, it checks once that the tables exist (you create them by running
+ * supabase/migrations/*.sql in the Supabase SQL Editor).
  */
-const g = globalThis as unknown as { __leagueDb?: DatabaseSync };
+const g = globalThis as unknown as { __leagueDb?: { db: Db; ready: Promise<void> | null } };
 
-export function getDb(): DatabaseSync {
-  if (!g.__leagueDb) {
-    const file = process.env.DB_FILE || path.join(process.cwd(), "data", "league.db");
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const db = new DatabaseSync(file);
-    db.exec("PRAGMA journal_mode = WAL");
-    g.__leagueDb = db;
-  }
-  migrate(g.__leagueDb);
-  return g.__leagueDb;
+function shared() {
+  if (!g.__leagueDb) g.__leagueDb = { db: poolDb(new pg.Pool(poolConfig())), ready: null };
+  const s = g.__leagueDb;
+  // If the check fails (e.g. the database is unreachable or not set up), the next request tries again.
+  s.ready ??= assertSchema(s.db).catch((err) => { s.ready = null; console.error(String(err)); throw err; });
+  return s;
+}
+
+/** Waits for the schema check, then runs the query. */
+const checked: Db = {
+  all: async (sql, params) => { const s = shared(); await s.ready; return s.db.all(sql, params); },
+  get: async (sql, params) => { const s = shared(); await s.ready; return s.db.get(sql, params); },
+  run: async (sql, params) => { const s = shared(); await s.ready; return s.db.run(sql, params); },
+  exec: async (sql) => { const s = shared(); await s.ready; return s.db.exec(sql); },
+  tx: async (fn) => { const s = shared(); await s.ready; return s.db.tx(fn); },
+};
+
+export function getDb(): Db {
+  return checked;
 }

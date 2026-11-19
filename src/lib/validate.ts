@@ -1,24 +1,10 @@
-import type { DatabaseSync } from "node:sqlite";
-
 /** A user-facing validation/business-rule error (shown to the official as-is). */
 export class LeagueError extends Error {}
 
-export type Row = Record<string, unknown>;
+export type { Row } from "./sql";
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-export function tx<T>(db: DatabaseSync, fn: () => T): T {
-  db.exec("BEGIN");
-  try {
-    const out = fn();
-    db.exec("COMMIT");
-    return out;
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
-}
 
 export const isBlank = (v: unknown) => v == null || String(v).trim() === "";
 

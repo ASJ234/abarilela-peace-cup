@@ -1,7 +1,7 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { Db } from "./sql";
 import { mustGetTeam } from "./league";
 import { POSITIONS, type DisciplineStat, type Player, type PlayerStat, type Position } from "./types";
-import { LeagueError, type Row, isBlank, optionalNumber, requiredText, tx } from "./validate";
+import { LeagueError, type Row, isBlank, optionalNumber, requiredText } from "./validate";
 
 function toPlayer(r: Row): Player {
   return {
@@ -13,20 +13,17 @@ function toPlayer(r: Row): Player {
   };
 }
 
-export function listPlayers(db: DatabaseSync, teamId: number): Player[] {
-  return db
-    .prepare("SELECT * FROM players WHERE team_id = ? ORDER BY number IS NULL, number, name")
-    .all(teamId)
-    .map(toPlayer);
+export async function listPlayers(db: Db, teamId: number): Promise<Player[]> {
+  const rows = await db.all("SELECT * FROM players WHERE team_id = ? ORDER BY number IS NULL, number, name", [teamId]);
+  return rows.map(toPlayer);
 }
 
-export function countPlayersByTeam(db: DatabaseSync, seasonId: number): Map<number, number> {
-  const rows = db
-    .prepare(
-      `SELECT t.id, COUNT(p.id) AS n FROM teams t LEFT JOIN players p ON p.team_id = t.id
-       WHERE t.season_id = ? GROUP BY t.id`,
-    )
-    .all(seasonId);
+export async function countPlayersByTeam(db: Db, seasonId: number): Promise<Map<number, number>> {
+  const rows = await db.all(
+    `SELECT t.id, COUNT(p.id) AS n FROM teams t LEFT JOIN players p ON p.team_id = t.id
+     WHERE t.season_id = ? GROUP BY t.id`,
+    [seasonId],
+  );
   return new Map(rows.map((r) => [Number(r.id), Number(r.n)]));
 }
 
@@ -37,11 +34,9 @@ function parsePosition(v: unknown): Position | null {
   return p as Position;
 }
 
-function assertNumberFree(db: DatabaseSync, teamId: number, number: number | null, exceptId = 0) {
+async function assertNumberFree(db: Db, teamId: number, number: number | null, exceptId = 0) {
   if (number == null) return;
-  const taken = db
-    .prepare("SELECT name FROM players WHERE team_id = ? AND number = ? AND id != ?")
-    .get(teamId, number, exceptId);
+  const taken = await db.get("SELECT name FROM players WHERE team_id = ? AND number = ? AND id != ?", [teamId, number, exceptId]);
   if (taken) throw new LeagueError(`Shirt number ${number} is already worn by ${taken.name}.`);
 }
 
@@ -61,44 +56,44 @@ export function parsePlayerLine(line: string): { name: string; number: number | 
 }
 
 /** Add players from pasted lines (see parsePlayerLine). */
-export function addPlayers(db: DatabaseSync, teamId: number, lines: string[]): Player[] {
-  mustGetTeam(db, teamId);
+export async function addPlayers(db: Db, teamId: number, lines: string[]): Promise<Player[]> {
+  await mustGetTeam(db, teamId);
   const parsed = lines.map((l) => l.trim()).filter(Boolean).map(parsePlayerLine);
   if (!parsed.length) throw new LeagueError("Enter at least one player.");
-  const insert = db.prepare("INSERT INTO players (team_id, name, number, position) VALUES (?, ?, ?, ?)");
-  tx(db, () => {
+  await db.tx(async (t) => {
     for (const p of parsed) {
-      assertNumberFree(db, teamId, p.number);
-      insert.run(teamId, p.name, p.number, p.position);
+      await assertNumberFree(t, teamId, p.number); // also sees players added earlier in this list
+      await t.run("INSERT INTO players (team_id, name, number, position) VALUES (?, ?, ?, ?)", [teamId, p.name, p.number, p.position]);
     }
   });
   return listPlayers(db, teamId);
 }
 
-export function updatePlayer(
-  db: DatabaseSync,
+export async function updatePlayer(
+  db: Db,
   playerId: number,
   input: { name: unknown; number: unknown; position: unknown },
-): void {
-  const existing = db.prepare("SELECT team_id FROM players WHERE id = ?").get(playerId);
+): Promise<void> {
+  const existing = await db.get("SELECT team_id FROM players WHERE id = ?", [playerId]);
   if (!existing) throw new LeagueError("Player not found.");
   const name = requiredText(input.name, "Player name", 60);
   const number = optionalNumber(input.number, "Shirt number", 99);
   const position = parsePosition(input.position);
-  assertNumberFree(db, Number(existing.team_id), number, playerId);
-  db.prepare("UPDATE players SET name = ?, number = ?, position = ? WHERE id = ?").run(name, number, position, playerId);
+  await assertNumberFree(db, Number(existing.team_id), number, playerId);
+  await db.run("UPDATE players SET name = ?, number = ?, position = ? WHERE id = ?", [name, number, position, playerId]);
 }
 
-export function deletePlayer(db: DatabaseSync, playerId: number): void {
-  const used = db
-    .prepare("SELECT COUNT(*) AS n FROM match_events WHERE player_id = ? OR assist_player_id = ?")
-    .get(playerId, playerId) as Row;
+export async function deletePlayer(db: Db, playerId: number): Promise<void> {
+  const used = (await db.get(
+    "SELECT COUNT(*) AS n FROM match_events WHERE player_id = ? OR assist_player_id = ?",
+    [playerId, playerId],
+  )) as Row;
   if (Number(used.n) > 0) {
     throw new LeagueError(
       "This player has goals, assists or cards recorded. Remove those match events first, so the stats stay correct.",
     );
   }
-  db.prepare("DELETE FROM players WHERE id = ?").run(playerId);
+  await db.run("DELETE FROM players WHERE id = ?", [playerId]);
 }
 
 // ---------------------------------------------------------------------------
@@ -124,59 +119,55 @@ const STAT_FROM = `
   WHERE m.season_id = ?`;
 
 /** Top scorers (own goals not counted). */
-export function topScorers(db: DatabaseSync, seasonId: number, limit = 20): PlayerStat[] {
-  return db
-    .prepare(
-      `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name, COUNT(*) AS n
-       ${STAT_FROM.replace("__PLAYER__", "e.player_id")} AND e.type = 'goal'
-       GROUP BY p.id ORDER BY n DESC, p.name LIMIT ?`,
-    )
-    .all(seasonId, limit)
-    .map(toStat);
+export async function topScorers(db: Db, seasonId: number, limit = 20): Promise<PlayerStat[]> {
+  const rows = await db.all(
+    `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name, COUNT(*) AS n
+     ${STAT_FROM.replace("__PLAYER__", "e.player_id")} AND e.type = 'goal'
+     GROUP BY p.id, t.id ORDER BY n DESC, p.name LIMIT ?`,
+    [seasonId, limit],
+  );
+  return rows.map(toStat);
 }
 
-export function topAssists(db: DatabaseSync, seasonId: number, limit = 20): PlayerStat[] {
-  return db
-    .prepare(
-      `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name, COUNT(*) AS n
-       ${STAT_FROM.replace("__PLAYER__", "e.assist_player_id")} AND e.type = 'goal'
-       GROUP BY p.id ORDER BY n DESC, p.name LIMIT ?`,
-    )
-    .all(seasonId, limit)
-    .map(toStat);
+export async function topAssists(db: Db, seasonId: number, limit = 20): Promise<PlayerStat[]> {
+  const rows = await db.all(
+    `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name, COUNT(*) AS n
+     ${STAT_FROM.replace("__PLAYER__", "e.assist_player_id")} AND e.type = 'goal'
+     GROUP BY p.id, t.id ORDER BY n DESC, p.name LIMIT ?`,
+    [seasonId, limit],
+  );
+  return rows.map(toStat);
 }
 
 /** Players with at least one card, most red cards first. */
-export function discipline(db: DatabaseSync, seasonId: number, limit = 50): DisciplineStat[] {
-  return db
-    .prepare(
-      `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name,
-              SUM(e.type = 'red') AS red, SUM(e.type = 'yellow') AS yellow
-       ${STAT_FROM.replace("__PLAYER__", "e.player_id")} AND e.type IN ('red', 'yellow')
-       GROUP BY p.id ORDER BY red DESC, yellow DESC, p.name LIMIT ?`,
-    )
-    .all(seasonId, limit)
-    .map((r) => {
-      const { playerId, name, number, teamId, teamName } = toStat({ ...r, n: 0 });
-      return { playerId, name, number, teamId, teamName, red: Number(r.red), yellow: Number(r.yellow) };
-    });
+export async function discipline(db: Db, seasonId: number, limit = 50): Promise<DisciplineStat[]> {
+  const rows = await db.all(
+    `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name,
+            COUNT(*) FILTER (WHERE e.type = 'red') AS red, COUNT(*) FILTER (WHERE e.type = 'yellow') AS yellow
+     ${STAT_FROM.replace("__PLAYER__", "e.player_id")} AND e.type IN ('red', 'yellow')
+     GROUP BY p.id, t.id ORDER BY red DESC, yellow DESC, p.name LIMIT ?`,
+    [seasonId, limit],
+  );
+  return rows.map((r) => {
+    const { playerId, name, number, teamId, teamName } = toStat({ ...r, n: 0 });
+    return { playerId, name, number, teamId, teamName, red: Number(r.red), yellow: Number(r.yellow) };
+  });
 }
 
 export type SquadRow = Player & { goals: number; assists: number; yellow: number; red: number };
 
 /** A team's squad with each player's season totals. */
-export function squadWithStats(db: DatabaseSync, teamId: number): SquadRow[] {
-  const rows = db
-    .prepare(
-      `SELECT p.*,
-         (SELECT COUNT(*) FROM match_events e WHERE e.player_id = p.id AND e.type = 'goal') AS goals,
-         (SELECT COUNT(*) FROM match_events e WHERE e.assist_player_id = p.id AND e.type = 'goal') AS assists,
-         (SELECT COUNT(*) FROM match_events e WHERE e.player_id = p.id AND e.type = 'yellow') AS yellow,
-         (SELECT COUNT(*) FROM match_events e WHERE e.player_id = p.id AND e.type = 'red') AS red
-       FROM players p WHERE p.team_id = ?
-       ORDER BY p.number IS NULL, p.number, p.name`,
-    )
-    .all(teamId);
+export async function squadWithStats(db: Db, teamId: number): Promise<SquadRow[]> {
+  const rows = await db.all(
+    `SELECT p.*,
+       (SELECT COUNT(*) FROM match_events e WHERE e.player_id = p.id AND e.type = 'goal') AS goals,
+       (SELECT COUNT(*) FROM match_events e WHERE e.assist_player_id = p.id AND e.type = 'goal') AS assists,
+       (SELECT COUNT(*) FROM match_events e WHERE e.player_id = p.id AND e.type = 'yellow') AS yellow,
+       (SELECT COUNT(*) FROM match_events e WHERE e.player_id = p.id AND e.type = 'red') AS red
+     FROM players p WHERE p.team_id = ?
+     ORDER BY p.number IS NULL, p.number, p.name`,
+    [teamId],
+  );
   return rows.map((r) => ({
     ...toPlayer(r),
     goals: Number(r.goals),

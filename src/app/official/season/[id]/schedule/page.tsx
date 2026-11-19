@@ -12,9 +12,9 @@ export const metadata: Metadata = { title: "Schedule" };
 export default async function SchedulePage({ params }: { params: Promise<{ id: string }> }) {
   const season = await loadSeasonForOfficial(params);
   const db = getDb();
-  const teams = listTeams(db, season.id);
-  const groups = listGroups(db, season.id);
-  const dates = listDates(db, season.id);
+  const teams = await listTeams(db, season.id);
+  const groups = await listGroups(db, season.id);
+  const dates = await listDates(db, season.id);
 
   const isGroups = season.format === "groups";
   const groupSizes = isGroups ? groups.map((g) => teams.filter((t) => t.groupId === g.id).length) : [teams.length];
@@ -49,8 +49,8 @@ export default async function SchedulePage({ params }: { params: Promise<{ id: s
           format={season.format}
           groupSizes={groupSizes}
           dateCount={dates.length}
-          leagueFixtures={leagueFixtureCount(db, season.id)}
-          leagueResults={leagueResultCount(db, season.id)}
+          leagueFixtures={await leagueFixtureCount(db, season.id)}
+          leagueResults={await leagueResultCount(db, season.id)}
           problem={problem}
         />
       </Section>

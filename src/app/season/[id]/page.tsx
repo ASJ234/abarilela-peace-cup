@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function TablePage({ params }: Props) {
   const season = await loadSeason(params);
-  const tables = getTables(getDb(), season);
+  const tables = await getTables(getDb(), season);
   const grouped = season.format === "groups";
   const teamHref = (teamId: number) => `/season/${season.id}/teams/${teamId}`;
 

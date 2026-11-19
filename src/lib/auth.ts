@@ -11,7 +11,7 @@ const COOKIE = "apc_session";
 
 /** The signed-in user for this request (looked up once per request). */
 export const getCurrentUser = cache(async (): Promise<User | null> => {
-  return sessionUser(getDb(), (await cookies()).get(COOKIE)?.value);
+  return await sessionUser(getDb(), (await cookies()).get(COOKIE)?.value);
 });
 
 /** Officials and the admin can manage seasons, fixtures and results. */
@@ -25,7 +25,8 @@ export async function isAdmin(): Promise<boolean> {
 
 async function startSession(userId: number) {
   const secure = (await headers()).get("x-forwarded-proto") === "https";
-  (await cookies()).set(COOKIE, createSession(getDb(), userId), {
+  const token = await createSession(getDb(), userId);
+  (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure,
@@ -59,7 +60,7 @@ export async function signInWithPassword(username: string, password: string): Pr
   const key = normaliseUsername(username);
   const minutes = lockedFor(key);
   if (minutes) return { ok: false, error: `Too many wrong attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.` };
-  const user = authenticate(getDb(), key, password);
+  const user = await authenticate(getDb(), key, password);
   if (!user) {
     recordFailure(key);
     return { ok: false, error: "Wrong username or password." };
@@ -71,13 +72,13 @@ export async function signInWithPassword(username: string, password: string): Pr
 
 /** Creates the account (may throw LeagueError) and signs it in. */
 export async function registerAndSignIn(input: { username: unknown; password: unknown; name?: unknown; favouriteTeamId?: unknown }) {
-  const user = signUp(getDb(), input);
+  const user = await signUp(getDb(), input);
   await startSession(user.id);
   return user;
 }
 
 export async function signOut(): Promise<void> {
   const jar = await cookies();
-  deleteSession(getDb(), jar.get(COOKIE)?.value);
+  await deleteSession(getDb(), jar.get(COOKIE)?.value);
   jar.delete(COOKIE);
 }
