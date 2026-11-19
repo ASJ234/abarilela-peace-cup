@@ -8,7 +8,7 @@
     "start": "node --no-warnings=ExperimentalWarning node_modules/next/dist/bin/next start",
     "lint": "eslint",
     "test": "node --no-warnings=ExperimentalWarning --import tsx --test test/*.test.ts",
-    "seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
+    "seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed-cli.ts",
     "admin": "node --env-file-if-exists=.env.local --import tsx scripts/admin.ts",
     "db:copy-sqlite": "node --no-warnings=ExperimentalWarning --env-file-if-exists=.env.local --import tsx scripts/copy-sqlite-to-postgres.ts"
   },

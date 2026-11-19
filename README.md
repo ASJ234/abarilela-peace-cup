@@ -176,12 +176,17 @@ Then **Sign in** with that username and password. The site has **exactly one adm
   the previous admin becomes a fan and is signed out.
 - Any other attempt to create a second admin is refused, and the database itself allows only one.
 
-To explore with demo data (a home-and-away league and a group-stage cup with squads, results,
-scorers and cards):
+To explore with demo data covering every feature (a finished league with its champion and
+optional play-offs, a group-stage cup with semi-finals decided on penalties and the final still to
+come, and a youth cup in progress, all with coaches, referees, penalty goals, own goals and player
+and coach cards):
 
 ```bash
-npm run seed
+npm run seed               # add the demo seasons
+npm run seed -- --replace  # delete every season first, then add them (accounts are kept)
 ```
+
+The seed also adds existing officials to the demo seasons and gives fans a favourite team.
 
 ### Accounts and roles
 
@@ -234,7 +239,7 @@ serverless ones such as Vercel included.
 | `npm run build`  | Production build                                               |
 | `npm start`      | Run the production build                                       |
 | `npm test`       | Unit and integration tests against an in-memory Postgres (PGlite) built from `supabase/migrations`, so no database server is needed |
-| `npm run seed`   | Add demo seasons                                               |
+| `npm run seed [-- --replace]` | Add demo seasons (`--replace` deletes every season first; accounts are kept) |
 | `npm run admin -- <user> <pass> [--replace]` | Create the one admin, reset its password, or hand the role over |
 | `npm run db:copy-sqlite` | One-off: copy the old SQLite `data/league.db` into Supabase |
 | `npm run lint`   | ESLint                                                         |
