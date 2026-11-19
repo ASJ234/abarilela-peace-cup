@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { StandingsTable, TableLegend } from "@/components/league";
+import { ChampionsBanner, StandingsTable, TableLegend } from "@/components/league";
 import { getDb } from "@/lib/db";
+import { seasonChampions } from "@/lib/knockout";
 import { getTables } from "@/lib/matches";
 import { loadSeason } from "./data";
 
@@ -16,14 +17,19 @@ export default async function TablePage({ params }: Props) {
   const grouped = season.format === "groups";
   const teamHref = (teamId: number) => `/season/${season.id}/teams/${teamId}`;
 
+  const champions = await seasonChampions(getDb(), season);
+
   return (
-    <div>
-      <div className={grouped ? "grid gap-8" : ""}>
-        {tables.map((t) => (
-          <StandingsTable key={t.group?.id ?? "league"} rows={t.rows} title={t.group?.name} teamHref={teamHref} />
-        ))}
+    <div className="space-y-6">
+      <ChampionsBanner champions={champions} seasonId={season.id} />
+      <div>
+        <div className={grouped ? "grid gap-8" : ""}>
+          {tables.map((t) => (
+            <StandingsTable key={t.group?.id ?? "league"} rows={t.rows} title={t.group?.name} teamHref={teamHref} />
+          ))}
+        </div>
+        <TableLegend season={season} grouped={grouped} />
       </div>
-      <TableLegend season={season} grouped={grouped} />
     </div>
   );
 }

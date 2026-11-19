@@ -11,11 +11,14 @@ export function Hero({
   nextMatch,
   signedIn,
   name,
+  champion,
 }: {
   season: Season | null;
   nextMatch: Match | null;
   signedIn: boolean;
   name?: string;
+  /** Shown in the spotlight when there's no next match and the season has a winner. */
+  champion?: { label: string; name: string } | null;
 }) {
   return (
     <section className="relative overflow-hidden rounded-2xl bg-brand text-brand-fg">
@@ -74,9 +77,18 @@ export function Hero({
             </Link>
           ) : (
             <div className="py-6 text-center">
-              <Trophy size={40} className="mx-auto opacity-90" aria-hidden />
-              <p className="mt-2 font-semibold">{season ? "No upcoming matches" : "The season starts soon"}</p>
-              <p className="text-sm opacity-80">{season ? "Check the results and final table." : "Fixtures will appear here."}</p>
+              <Trophy size={40} className={`mx-auto ${champion ? "text-[#f5c518]" : "opacity-90"}`} aria-hidden />
+              {champion ? (
+                <>
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-widest opacity-80">{champion.label}</p>
+                  <p className="mt-1 text-2xl font-black">{champion.name}</p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 font-semibold">{season ? "No upcoming matches" : "The season starts soon"}</p>
+                  <p className="text-sm opacity-80">{season ? "Check the results and final table." : "Fixtures will appear here."}</p>
+                </>
+              )}
             </div>
           )}
         </div>

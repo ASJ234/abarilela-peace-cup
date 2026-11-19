@@ -229,3 +229,32 @@ export async function createNextRound(db: Db, seasonId: number, details: RoundDe
   if (details.thirdPlace && plan.thirdPlace) await insertRound(db, seasonId, "Third place", [plan.thirdPlace], details, false);
   return { stage: plan.stage, matches: plan.pairings.length, thirdPlace: Boolean(details.thirdPlace && plan.thirdPlace) };
 }
+
+// ---------------------------------------------------------------------------
+// Champions
+// ---------------------------------------------------------------------------
+
+export type Champions = {
+  /** League format: the team top of the table once every league match is played. */
+  league: { id: number; name: string } | null;
+  /** The winner of the knockout final (the main prize in a group-stage season, optional play-offs in a league). */
+  cup: { id: number; name: string } | null;
+};
+
+/**
+ * Who has won. In a league the team top of the final table wins the league; knockout
+ * play-offs are optional extras. In a group-stage season the knockout final decides it.
+ */
+export async function seasonChampions(db: Db, season: Season): Promise<Champions> {
+  const matches = await listMatches(db, season.id);
+  let leagueWinner: Champions["league"] = null;
+  if (season.format === "league") {
+    const leagueMatches = matches.filter((m) => m.stage == null);
+    if (leagueMatches.length > 0 && leagueMatches.every((m) => m.played)) {
+      const top = (await getTables(db, season))[0]?.rows[0];
+      if (top) leagueWinner = { id: top.teamId, name: top.name };
+    }
+  }
+  const final = matches.find((m) => m.bracketSlot != null && m.stage === "Final");
+  return { league: leagueWinner, cup: final ? winnerOf(final) : null };
+}

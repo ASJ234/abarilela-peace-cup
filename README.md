@@ -21,10 +21,19 @@ Each season uses one of two formats, chosen when it's created (in **Settings**):
 Knockout or extra matches (e.g. "Semi-final", "Final") can be added to either format with a *stage*; they
 don't count toward the tables. The format can't be changed while league/group fixtures exist.
 
+### Who wins
+
+- **League:** the team top of the final table is the **league champion**, shown on the table page
+  and the home page once every league match has a result. Nothing else needs setting up. Knockout
+  play-offs are optional (Schedule → *3. Knockout play-offs (optional)*); they don't change the table
+  or the league champion, and their final's winner is shown as the play-off winner.
+- **Group stage:** the group tables decide who goes into the knockout rounds, and the winner of the
+  **final** is the cup winner.
+
 ### Knockout stage
 
-Once every league/group match has a result, **Schedule → 3. Knockout stage** draws the knockout
-rounds. Choose who goes through (e.g. *Top 2 of each group*), check the preview, and create the
+Once every group match (or, for optional league play-offs, every league match) has a result,
+**Schedule → 3. Knockout stage** draws the knockout rounds. Choose who goes through (e.g. *Top 2 of each group*), check the preview, and create the
 round. The draw uses the usual cross-over bracket, as at the World Cup and the Euros:
 
 | Qualifiers              | First round                                                  |
@@ -34,7 +43,7 @@ round. The draw uses the usual cross-over bracket, as at the World Cup and the E
 | 4 groups, top 2         | Quarter-finals: A1 v B2, C1 v D2, B1 v A2, D1 v C2           |
 | 8 groups, top 2         | Round of 16: A1 v B2, C1 v D2 … B1 v A2, D1 v C2 …           |
 | Group winners           | A1 v B1, C1 v D1 …                                           |
-| One league table, top 4 | Semi-finals: 1 v 4, 2 v 3 (top 8: 1 v 8, 4 v 5, 2 v 7, 3 v 6) |
+| League play-offs, top 4 | Semi-finals: 1 v 4, 2 v 3 (top 8: 1 v 8, 4 v 5, 2 v 7, 3 v 6) |
 
 Teams from the same group never meet in the first round, and each group's winner and runner-up
 start in opposite halves, so they can only meet again in the final. The number going through must

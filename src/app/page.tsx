@@ -9,6 +9,7 @@ import {
   countsFor, fairPlay, featuredSeason, latestResults, seasonCounts, seasonNumbers, seasonRecords, teamSnapshot, upcoming,
 } from "@/lib/insights";
 import { getSeason, getTeam, listSeasons } from "@/lib/league";
+import { seasonChampions } from "@/lib/knockout";
 import { getTables, listMatches } from "@/lib/matches";
 import { topAssists, topScorers } from "@/lib/players";
 
@@ -42,15 +43,19 @@ export default async function Home() {
     return { ...s, played: n.played, matches: n.matches, teams: n.teams };
   });
 
-  const [tables, scorers, assists, fair, numbers] = await Promise.all([
+  const [tables, scorers, assists, fair, numbers, champions] = await Promise.all([
     getTables(db, featured), topScorers(db, featured.id, 3), topAssists(db, featured.id, 3), fairPlay(db, featured.id),
-    seasonNumbers(db, featured.id),
+    seasonNumbers(db, featured.id), seasonChampions(db, featured),
   ]);
+  // The league winner is the main prize in a league; the cup final in a group-stage season.
+  const champion = champions.league
+    ? { label: "League champions", name: champions.league.name }
+    : champions.cup ? { label: "Cup winners", name: champions.cup.name } : null;
 
   return (
     <div className="space-y-8">
       <div className="space-y-6">
-        <Hero season={featured} nextMatch={next} signedIn={!!me} name={me?.name} />
+        <Hero season={featured} nextMatch={next} signedIn={!!me} name={me?.name} champion={champion} />
         {me && <YourTeam snapshot={snapshot} />}
         {/* The hero spotlights the next match; these are the ones after it. */}
         <UpcomingStrip matches={upcoming(matches, 5).slice(next ? 1 : 0)} seasonId={featured.id} href={`${base}/fixtures`} />

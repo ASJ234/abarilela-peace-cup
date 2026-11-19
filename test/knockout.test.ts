@@ -121,6 +121,12 @@ describe("knockout rounds in a season", () => {
     const later = (await matches.listMatches(db, s.id)).filter((m) => m.stage === "Final" || m.stage === "Third place");
     assert.deepEqual(later.map((m) => `${m.stage}: ${m.home.name} v ${m.away.name}`).sort(), ["Final: Lions v Eagles", "Third place: Sharks v Hawks"]);
     assert.equal((await knockout.planKnockout(db, s)).kind, "done");
+
+    // A group-stage season is won in the final; there is no league champion.
+    assert.deepEqual(await knockout.seasonChampions(db, s), { league: null, cup: null });
+    const theFinal = later.find((m) => m.stage === "Final")!;
+    await matches.saveResult(db, theFinal.id, 0, 0, { home: 2, away: 4 });
+    assert.deepEqual(await knockout.seasonChampions(db, s), { league: null, cup: { id: theFinal.away.id, name: "Eagles" } });
     await assert.rejects(knockout.createNextRound(db, s.id), /final has already been drawn/);
   });
 
@@ -141,5 +147,28 @@ describe("knockout rounds in a season", () => {
     m = (await matches.getMatch(db, final))!;
     assert.deepEqual([m.homePens, m.awayPens, knockout.winnerOf(m)?.name], [null, null, "Lions"]);
     await assert.rejects(db.run("UPDATE matches SET home_pens = 3, away_pens = 2 WHERE id = ?", [final]), /pens_check/);
+  });
+
+  it("in a league, the team top of the table is champion once every league match is played; play-offs are extra", async () => {
+    const s = await league.createSeason(db, { name: "League", win: 3, draw: 1, loss: 0, highlightTop: 4, relegation: 0 });
+    await league.addTeams(db, s.id, ["Lions", "Eagles", "Bulls", "Hawks"]);
+    await league.setPlayingDates(db, s.id, Array.from({ length: 6 }, (_, i) => `2026-12-0${i + 1}`));
+    await matches.generateFixtures(db, s.id, { shuffle: false });
+    const rank = ["Lions", "Eagles", "Bulls", "Hawks"];
+    const all = await matches.listMatches(db, s.id);
+    for (const m of all.slice(1)) {
+      const homeBetter = rank.indexOf(m.home.name) < rank.indexOf(m.away.name);
+      await matches.saveResult(db, m.id, homeBetter ? 1 : 0, homeBetter ? 0 : 1);
+    }
+    assert.deepEqual(await knockout.seasonChampions(db, s), { league: null, cup: null }, "not until every match is played");
+    await matches.saveResult(db, all[0].id, 1, 1);
+    const lions = (await league.listTeams(db, s.id)).find((t) => t.name === "Lions")!;
+    assert.deepEqual(await knockout.seasonChampions(db, s), { league: { id: lions.id, name: "Lions" }, cup: null });
+
+    // Optional play-offs: top 4 into semi-finals. The league champion doesn't change.
+    assert.deepEqual(await knockout.createFirstRound(db, s.id, 4), { stage: "Semi-final", matches: 2 });
+    const semis = (await matches.listMatches(db, s.id)).filter((m) => m.stage === "Semi-final");
+    assert.deepEqual(semis.map((m) => `${m.home.name} v ${m.away.name}`), ["Lions v Hawks", "Eagles v Bulls"]);
+    assert.equal((await knockout.seasonChampions(db, s)).league?.name, "Lions");
   });
 });

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DateEditor, FixtureGenerator, KnockoutPlanner } from "@/components/official";
-import { Section } from "@/components/ui";
+import { Collapsible, Section } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { roundsNeeded } from "@/lib/fixtures";
 import { planKnockout } from "@/lib/knockout";
@@ -56,14 +56,24 @@ export default async function SchedulePage({ params }: { params: Promise<{ id: s
         />
       </Section>
 
-      <Section
-        title="3. Knockout stage"
-        description={`Once every ${isGroups ? "group" : "league"} match has a result, draw the knockout rounds from the final ${
-          isGroups ? "group tables" : "table"
-        }. Then create each next round from the winners. Level knockout matches are decided by the penalty shoot-out you enter with the score.`}
-      >
-        <KnockoutPlanner seasonId={season.id} plan={await planKnockout(db, season)} />
-      </Section>
+      {isGroups ? (
+        <Section
+          title="3. Knockout stage"
+          description="Once every group match has a result, draw the knockout rounds from the final group tables. Then create each next round from the winners. Level knockout matches are decided by the penalty shoot-out you enter with the score."
+        >
+          <KnockoutPlanner seasonId={season.id} plan={await planKnockout(db, season)} />
+        </Section>
+      ) : (
+        // In a league the team top of the table wins; play-offs are an optional extra.
+        <Collapsible title="3. Knockout play-offs (optional)">
+          <p className="mb-4 mt-1 text-sm text-muted">
+            In a league, the team top of the final table is the champion; there&apos;s nothing more to set up. If you
+            also want play-offs (e.g. the top 4 in semi-finals), draw them here once every league match has a result.
+            They don&apos;t change the league table or the league champion.
+          </p>
+          <KnockoutPlanner seasonId={season.id} plan={await planKnockout(db, season)} />
+        </Collapsible>
+      )}
     </div>
   );
 }
