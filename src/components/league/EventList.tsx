@@ -35,7 +35,7 @@ export function EventList({
             <span className="min-w-0 flex-1">
               <span className="font-medium">{e.player.name}</span>
               {e.type === "own_goal" && <span className="text-muted"> (og)</span>}
-              {e.assist && <span className="block text-xs text-muted sm:inline sm:text-sm"> · assist {e.assist.name}</span>}
+              {e.assist && <span className="text-muted" title="Assist"> ({e.assist.name})</span>}
             </span>
             {renderAction?.(e)}
           </li>
