@@ -31,6 +31,7 @@ function toMatch(r: Row): Match {
     date: r.date == null ? null : String(r.date),
     kickoff: r.kickoff == null ? null : String(r.kickoff),
     venue: r.venue == null ? null : String(r.venue),
+    referee: r.referee == null ? null : String(r.referee),
     groupId: r.group_id == null ? null : Number(r.group_id),
     groupName: r.group_name == null ? null : String(r.group_name),
     stage: r.stage == null ? null : String(r.stage),
@@ -112,6 +113,7 @@ export type MatchInput = {
   date?: unknown;
   kickoff?: unknown;
   venue?: unknown;
+  referee?: unknown;
   stage?: unknown;
   round?: unknown;
 };
@@ -147,6 +149,7 @@ async function parseMatch(db: Db, seasonId: number, input: MatchInput) {
     date: optionalDate(input.date),
     kickoff: optionalTime(input.kickoff),
     venue: optionalText(input.venue, "Venue", 80),
+    referee: optionalText(input.referee, "Referee", 60),
     round: optionalNumber(input.round, "Matchday", 500) ?? 0,
   };
 }
@@ -155,9 +158,9 @@ export async function createMatch(db: Db, seasonId: number, input: MatchInput): 
   await mustGetSeason(db, seasonId);
   const m = await parseMatch(db, seasonId, input);
   const r = await db.get(
-    `INSERT INTO matches (season_id, round, date, kickoff, venue, stage, group_id, home_team_id, away_team_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [seasonId, m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId],
+    `INSERT INTO matches (season_id, round, date, kickoff, venue, referee, stage, group_id, home_team_id, away_team_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [seasonId, m.round, m.date, m.kickoff, m.venue, m.referee, m.stage, m.groupId, m.homeId, m.awayId],
   );
   return Number(r!.id);
 }
@@ -173,10 +176,16 @@ export async function updateMatch(db: Db, matchId: number, input: MatchInput): P
     throw new LeagueError("This match has goals or cards recorded. Remove them before changing the teams.");
   }
   await db.run(
-    `UPDATE matches SET round = ?, date = ?, kickoff = ?, venue = ?, stage = ?, group_id = ?,
+    `UPDATE matches SET round = ?, date = ?, kickoff = ?, venue = ?, referee = ?, stage = ?, group_id = ?,
        home_team_id = ?, away_team_id = ? WHERE id = ?`,
-    [m.round, m.date, m.kickoff, m.venue, m.stage, m.groupId, m.homeId, m.awayId, matchId],
+    [m.round, m.date, m.kickoff, m.venue, m.referee, m.stage, m.groupId, m.homeId, m.awayId, matchId],
   );
+}
+
+/** Sets (or, when blank, clears) the referee. Allowed after the match too, unlike other details. */
+export async function setReferee(db: Db, matchId: number, referee: unknown): Promise<void> {
+  await mustGetMatch(db, matchId);
+  await db.run("UPDATE matches SET referee = ? WHERE id = ?", [optionalText(referee, "Referee", 60), matchId]);
 }
 
 export async function deleteMatch(db: Db, matchId: number): Promise<number> {
@@ -326,7 +335,7 @@ export async function listEvents(db: Db, matchId: number): Promise<MatchEvent[]>
   const rows = await db.all(
     `SELECT e.*, p.name AS player_name, p.number AS player_number, ap.name AS assist_name
      FROM match_events e
-     JOIN players p ON p.id = e.player_id
+     LEFT JOIN players p ON p.id = e.player_id
      LEFT JOIN players ap ON ap.id = e.assist_player_id
      WHERE e.match_id = ?
      ORDER BY e.minute IS NULL, e.minute, COALESCE(e.added_minute, 0), e.id`,
@@ -337,14 +346,27 @@ export async function listEvents(db: Db, matchId: number): Promise<MatchEvent[]>
       matchId: Number(r.match_id),
       type: r.type as EventType,
       teamId: Number(r.team_id),
-      player: { id: Number(r.player_id), name: String(r.player_name), number: r.player_number == null ? null : Number(r.player_number) },
+      player: r.player_id == null
+        ? null
+        : { id: Number(r.player_id), name: String(r.player_name), number: r.player_number == null ? null : Number(r.player_number) },
+      coach: r.coach_name == null ? null : String(r.coach_name),
       assist: r.assist_player_id == null ? null : { id: Number(r.assist_player_id), name: String(r.assist_name) },
+      penalty: r.penalty === true || r.penalty === 1 || r.penalty === "t",
       minute: r.minute == null ? null : Number(r.minute),
       addedMinute: r.added_minute == null ? null : Number(r.added_minute),
     }));
 }
 
-export type EventInput = { type: unknown; teamId: unknown; playerId: unknown; assistId?: unknown; minute?: unknown };
+/**
+ * `playerId` is a player's id, or "coach" for a card given to the team's coach (the name
+ * comes from `coachName`, or else the team's saved coach). `penalty` marks a penalty goal.
+ */
+export type EventInput = {
+  type: unknown; teamId: unknown; playerId: unknown; assistId?: unknown; minute?: unknown; penalty?: unknown; coachName?: unknown;
+};
+
+/** The value of the "player" choice that means the team's coach. */
+export const COACH = "coach";
 
 const MAX_MINUTE = 150;
 const MAX_ADDED = 30;
@@ -367,9 +389,9 @@ export function parseMinute(value: unknown): { minute: number | null; addedMinut
 
 /**
  * Adds a goal, own goal, yellow or red card.
- * - goal: scorer (and optional assister) from `teamId`, the scoring team.
+ * - goal: scorer (and optional assister) from `teamId`, the scoring team. A penalty has no assist.
  * - own_goal: `teamId` is the team credited; the player is from the opponent.
- * - yellow/red: player from `teamId`.
+ * - yellow/red: a player from `teamId`, or that team's coach.
  */
 export async function addEvent(db: Db, matchId: number, input: EventInput): Promise<number> {
   const m = await mustGetMatch(db, matchId);
@@ -378,6 +400,22 @@ export async function addEvent(db: Db, matchId: number, input: EventInput): Prom
   const teamId = optionalId(input.teamId);
   if (teamId !== m.home.id && teamId !== m.away.id) throw new LeagueError("Choose one of the two teams in this match.");
   const opponentId = teamId === m.home.id ? m.away.id : m.home.id;
+  const { minute, addedMinute } = parseMinute(input.minute);
+  const isCard = type === "yellow" || type === "red";
+
+  if (String(input.playerId ?? "") === COACH) {
+    if (!isCard) throw new LeagueError("Only a card can be given to a coach. Choose a player for a goal.");
+    const saved = await db.get("SELECT coach FROM teams WHERE id = ?", [teamId]);
+    const name = isBlank(input.coachName) ? saved?.coach : input.coachName;
+    if (isBlank(name)) throw new LeagueError("Enter the coach's name.");
+    const coachName = optionalText(name, "Coach's name", 60);
+    const r = await db.get(
+      `INSERT INTO match_events (match_id, type, team_id, coach_name, minute, added_minute)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+      [matchId, type, teamId, coachName, minute, addedMinute],
+    );
+    return Number(r!.id);
+  }
 
   const playerId = optionalId(input.playerId);
   if (playerId == null) throw new LeagueError("Choose a player.");
@@ -389,8 +427,9 @@ export async function addEvent(db: Db, matchId: number, input: EventInput): Prom
     );
   }
 
+  const penalty = type === "goal" && (input.penalty === true || input.penalty === "on" || input.penalty === "1");
   let assistId: number | null = null;
-  if (type === "goal") {
+  if (type === "goal" && !penalty) {
     assistId = optionalId(input.assistId);
     if (assistId != null) {
       if (assistId === playerId) throw new LeagueError("A player can't assist their own goal.");
@@ -399,11 +438,10 @@ export async function addEvent(db: Db, matchId: number, input: EventInput): Prom
     }
   }
 
-  const { minute, addedMinute } = parseMinute(input.minute);
   const r = await db.get(
-    `INSERT INTO match_events (match_id, type, team_id, player_id, assist_player_id, minute, added_minute)
-     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [matchId, type, teamId, playerId, assistId, minute, addedMinute],
+    `INSERT INTO match_events (match_id, type, team_id, player_id, assist_player_id, minute, added_minute, penalty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [matchId, type, teamId, playerId, assistId, minute, addedMinute, penalty],
   );
   return Number(r!.id);
 }

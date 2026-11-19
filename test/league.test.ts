@@ -96,7 +96,7 @@ describe("computeStandings", () => {
   ];
   let id = 0;
   const m = (round: number, h: number, a: number, hs: number | null, as: number | null): Match => ({
-    id: ++id, round, date: `2026-01-${String(round).padStart(2, "0")}`, kickoff: null, venue: null,
+    id: ++id, round, date: `2026-01-${String(round).padStart(2, "0")}`, kickoff: null, venue: null, referee: null,
     groupId: null, groupName: null, stage: null,
     home: teams[h - 1], away: teams[a - 1], homeScore: hs, awayScore: as, played: hs != null,
   });

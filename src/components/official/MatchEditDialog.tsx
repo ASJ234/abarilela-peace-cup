@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { updateMatchAction } from "@/app/actions";
+import { setRefereeAction, updateMatchAction } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Alert, Button, Modal, type ButtonSize } from "@/components/ui";
+import { Alert, Button, Field, Input, Modal, type ButtonSize } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { PLAYED_MATCH_LOCKED, type Format, type Group, type Match, type Team } from "@/lib/types";
 import { MatchFields } from "./MatchFields";
@@ -43,9 +43,15 @@ export function MatchEditProvider({
         {editing?.played ? (
           <div className="space-y-4">
             <Alert>🔒 {PLAYED_MATCH_LOCKED}</Alert>
-            <div className="flex justify-end">
-              <Button type="button" variant="secondary" onClick={close} className="w-full sm:w-auto">Close</Button>
-            </div>
+            <ActionForm key={editing.id} action={setRefereeAction} fields={{ matchId: editing.id }} onSuccess={close} className="space-y-4">
+              <Field label="Referee">
+                <Input name="referee" maxLength={60} defaultValue={editing.referee ?? ""} placeholder="Referee's name" autoComplete="off" />
+              </Field>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="secondary" onClick={close} className="w-full sm:w-auto">Close</Button>
+                <SubmitButton className="w-full sm:w-auto">Save referee</SubmitButton>
+              </div>
+            </ActionForm>
           </div>
         ) : editing && (
           <ActionForm key={editing.id} action={updateMatchAction} fields={{ matchId: editing.id }} onSuccess={close} className="space-y-4">

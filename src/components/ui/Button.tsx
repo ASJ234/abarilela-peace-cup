@@ -38,3 +38,8 @@ export function Button({ variant, size, className = "", ...props }: ComponentPro
 export function LinkButton({ variant = "secondary", size, className = "", ...props }: ComponentProps<typeof Link> & Style) {
   return <Link {...props} className={buttonClass(variant, size, className)} />;
 }
+
+/** A plain link styled as a button, for files (e.g. a PDF) that shouldn't go through client-side navigation. */
+export function FileLinkButton({ variant = "secondary", size, className = "", ...props }: ComponentProps<"a"> & Style) {
+  return <a {...props} className={buttonClass(variant, size, className)} />;
+}

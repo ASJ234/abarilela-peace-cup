@@ -118,15 +118,16 @@ const STAT_FROM = `
   JOIN teams t ON t.id = p.team_id
   WHERE m.season_id = ?`;
 
-/** Top scorers (own goals not counted). */
-export async function topScorers(db: Db, seasonId: number, limit = 20): Promise<PlayerStat[]> {
+/** Top scorers (own goals not counted), with how many of their goals were penalties. */
+export async function topScorers(db: Db, seasonId: number, limit = 20): Promise<(PlayerStat & { penalties: number })[]> {
   const rows = await db.all(
-    `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name, COUNT(*) AS n
+    `SELECT p.id AS player_id, p.name, p.number, t.id AS team_id, t.name AS team_name, COUNT(*) AS n,
+            COUNT(*) FILTER (WHERE e.penalty) AS pens
      ${STAT_FROM.replace("__PLAYER__", "e.player_id")} AND e.type = 'goal'
      GROUP BY p.id, t.id ORDER BY n DESC, p.name LIMIT ?`,
     [seasonId, limit],
   );
-  return rows.map(toStat);
+  return rows.map((r) => ({ ...toStat(r), penalties: Number(r.pens) }));
 }
 
 export async function topAssists(db: Db, seasonId: number, limit = 20): Promise<PlayerStat[]> {
@@ -152,6 +153,25 @@ export async function discipline(db: Db, seasonId: number, limit = 50): Promise<
     const { playerId, name, number, teamId, teamName } = toStat({ ...r, n: 0 });
     return { playerId, name, number, teamId, teamName, red: Number(r.red), yellow: Number(r.yellow) };
   });
+}
+
+/** Cards given to coaches, per coach and team. */
+export async function coachCards(
+  db: Db, seasonId: number,
+): Promise<{ name: string; teamId: number; teamName: string; yellow: number; red: number }[]> {
+  const rows = await db.all(
+    `SELECT e.coach_name, t.id AS team_id, t.name AS team_name,
+            COUNT(*) FILTER (WHERE e.type = 'red') AS red, COUNT(*) FILTER (WHERE e.type = 'yellow') AS yellow
+     FROM match_events e
+     JOIN matches m ON m.id = e.match_id
+     JOIN teams t ON t.id = e.team_id
+     WHERE m.season_id = ? AND e.coach_name IS NOT NULL
+     GROUP BY e.coach_name, t.id ORDER BY red DESC, yellow DESC, e.coach_name`,
+    [seasonId],
+  );
+  return rows.map((r) => ({
+    name: String(r.coach_name), teamId: Number(r.team_id), teamName: String(r.team_name), yellow: Number(r.yellow), red: Number(r.red),
+  }));
 }
 
 export type SquadRow = Player & { goals: number; assists: number; yellow: number; red: number };

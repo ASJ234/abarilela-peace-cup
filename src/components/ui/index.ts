@@ -1,5 +1,5 @@
 // Generic, app-agnostic UI building blocks.
-export { Button, LinkButton, buttonClass, type ButtonSize, type ButtonVariant } from "./Button";
+export { Button, FileLinkButton, LinkButton, buttonClass, type ButtonSize, type ButtonVariant } from "./Button";
 export { Card, Section } from "./Card";
 export { Collapsible } from "./Collapsible";
 export { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog";

@@ -23,7 +23,7 @@ export type Season = {
 
 export type Group = { id: number; name: string };
 
-export type Team = { id: number; name: string; groupId: number | null };
+export type Team = { id: number; name: string; groupId: number | null; /** Head coach, if entered. */ coach: string | null };
 
 export type Position = "GK" | "DF" | "MF" | "FW";
 export const POSITIONS: Position[] = ["GK", "DF", "MF", "FW"];
@@ -48,6 +48,7 @@ export type Match = {
   date: string | null; // YYYY-MM-DD
   kickoff: string | null; // HH:MM
   venue: string | null;
+  referee: string | null;
   groupId: number | null;
   groupName: string | null;
   /** null = league/group match (counts toward the table). Otherwise e.g. "Final". */
@@ -62,7 +63,8 @@ export type Match = {
 /** Shown when someone tries to edit a match that has a score. */
 export const PLAYED_MATCH_LOCKED =
   "This match has already been played, so its teams, date, kick-off, venue and stage can't be changed. " +
-  "If the score was entered by mistake, clear it first (empty both score boxes and save), then edit the match.";
+  "If the score was entered by mistake, clear it first (empty both score boxes and save), then edit the match. " +
+  "The referee can still be changed.";
 
 export type EventType = "goal" | "own_goal" | "yellow" | "red";
 
@@ -70,14 +72,22 @@ export type MatchEvent = {
   id: number;
   matchId: number;
   type: EventType;
-  /** Goals: the team credited with the goal. Cards: the player's team. */
+  /** Goals: the team credited with the goal. Cards: the player's (or coach's) team. */
   teamId: number;
-  player: { id: number; name: string; number: number | null };
+  /** null when a card went to the team's coach (see `coach`). */
+  player: { id: number; name: string; number: number | null } | null;
+  /** The coach's name, for a card given to a coach. */
+  coach: string | null;
   assist: { id: number; name: string } | null;
+  /** A goal scored from the penalty spot. */
+  penalty: boolean;
   minute: number | null;
   /** Added (stoppage) time: 3 for a goal in 90+3. Only set together with `minute`. */
   addedMinute: number | null;
 };
+
+/** Who an event is for: the player's name, or the coach's. */
+export const eventPerson = (e: Pick<MatchEvent, "player" | "coach">) => e.player?.name ?? e.coach ?? "Unknown";
 
 export type FormResult = "W" | "D" | "L";
 

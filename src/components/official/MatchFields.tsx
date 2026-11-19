@@ -48,6 +48,9 @@ export function MatchFields({
           <Input name="venue" maxLength={80} defaultValue={match?.venue ?? ""} placeholder="Optional" />
         </Field>
       </div>
+      <Field label="Referee">
+        <Input name="referee" maxLength={60} defaultValue={match?.referee ?? ""} placeholder="Optional" autoComplete="off" />
+      </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Stage">
           <Input

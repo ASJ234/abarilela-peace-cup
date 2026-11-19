@@ -230,6 +230,11 @@ export const renameTeamAction = official(["team", "teamId"], async (fd) => {
   return "Team renamed.";
 });
 
+export const setTeamCoachAction = official(["team", "teamId"], async (fd) => {
+  await league.setTeamCoach(getDb(), id(fd, "teamId"), fd.get("coach"));
+  return str(fd, "coach").trim() ? "Coach saved." : "Coach removed.";
+});
+
 export const setTeamGroupAction = official(["team", "teamId"], async (fd) => {
   await league.setTeamGroup(getDb(), id(fd, "teamId"), fd.get("groupId"));
   return "Group updated.";
@@ -290,7 +295,7 @@ export const clearFixturesAction = official(["season", "seasonId"], async (fd) =
 function matchInput(fd: FormData): matches.MatchInput {
   return {
     homeTeamId: fd.get("homeTeamId"), awayTeamId: fd.get("awayTeamId"),
-    date: fd.get("date"), kickoff: fd.get("kickoff"), venue: fd.get("venue"),
+    date: fd.get("date"), kickoff: fd.get("kickoff"), venue: fd.get("venue"), referee: fd.get("referee"),
     stage: fd.get("stage"), round: fd.get("round"),
   };
 }
@@ -312,6 +317,11 @@ export async function deleteMatchAction(_: FormState, fd: FormData): Promise<For
   redirect(`/official/season/${seasonId}/matches`);
 }
 
+export const setRefereeAction = official(["match", "matchId"], async (fd) => {
+  await matches.setReferee(getDb(), id(fd, "matchId"), fd.get("referee"));
+  return str(fd, "referee").trim() ? "Referee saved." : "Referee removed.";
+});
+
 export const saveResultAction = official(["match", "matchId"], async (fd) => {
   await matches.saveResult(getDb(), id(fd, "matchId"), fd.get("homeScore"), fd.get("awayScore"));
   return "Result saved.";
@@ -322,7 +332,7 @@ export const saveResultAction = official(["match", "matchId"], async (fd) => {
 export const addEventAction = official(["match", "matchId"], async (fd) => {
   await matches.addEvent(getDb(), id(fd, "matchId"), {
     type: fd.get("type"), teamId: fd.get("teamId"), playerId: fd.get("playerId"),
-    assistId: fd.get("assistId"), minute: fd.get("minute"),
+    assistId: fd.get("assistId"), minute: fd.get("minute"), penalty: fd.get("penalty"), coachName: fd.get("coachName"),
   });
   return "Added.";
 });

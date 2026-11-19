@@ -1,5 +1,5 @@
 import { formatMinute } from "@/lib/format";
-import type { EventType, Match, MatchEvent } from "@/lib/types";
+import { type EventType, type Match, type MatchEvent, eventPerson } from "@/lib/types";
 
 export const EVENT_ICON: Record<EventType, string> = { goal: "⚽", own_goal: "⚽", yellow: "🟨", red: "🟥" };
 export const EVENT_LABEL: Record<EventType, string> = {
@@ -11,7 +11,8 @@ export const EVENT_LABEL: Record<EventType, string> = {
 
 /**
  * Match timeline. Home events align left, away events right.
- * Own goals are shown on the side of the team credited with the goal.
+ * Own goals are shown on the side of the team credited with the goal. Penalties are marked
+ * "(pen)", and cards given to a coach "(coach)".
  */
 export function EventList({
   match,
@@ -33,7 +34,9 @@ export function EventList({
             <span className="num w-10 shrink-0 text-xs text-muted">{formatMinute(e)}</span>
             <span aria-label={EVENT_LABEL[e.type]} title={EVENT_LABEL[e.type]}>{EVENT_ICON[e.type]}</span>
             <span className="min-w-0 flex-1">
-              <span className="font-medium">{e.player.name}</span>
+              <span className="font-medium">{eventPerson(e)}</span>
+              {e.coach != null && <span className="text-muted"> (coach)</span>}
+              {e.penalty && <span className="text-muted" title="Penalty"> (pen)</span>}
               {e.type === "own_goal" && <span className="text-muted"> (og)</span>}
               {e.assist && <span className="text-muted" title="Assist"> ({e.assist.name})</span>}
             </span>

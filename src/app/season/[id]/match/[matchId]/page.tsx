@@ -33,7 +33,7 @@ export default async function MatchPage({ params }: Props) {
         <p className="mb-2 text-sm text-muted">{formatDate(m.date)}</p>
         <Scoreline match={m} size="lg" />
         <div className="mt-3 flex justify-center">
-          <MatchMeta match={m} />
+          <MatchMeta match={m} showReferee />
         </div>
         {!m.played && <p className="mt-2 text-sm text-muted">Not played yet</p>}
       </Card>

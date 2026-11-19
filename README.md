@@ -48,12 +48,12 @@ There's no sign-up: visitors just view the site. Only people the admin creates a
 
 | Page        | What it shows                                                                                                   |
 | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| **Table**   | One league table, or one table per group. P, W, D, L, GF, GA, GD, Pts and last-5 form. Top N highlighted (default 4), optional bottom zone. |
-| **Fixtures**| Upcoming matches by date with kick-off time, venue and group/stage.                                              |
+| **Table**   | One league table, or one table per group. P, W, D, L, GF, GA, GD, Pts and last-5 form. Top N highlighted (default 4), optional bottom zone. Every column is always shown: on phones the table scrolls sideways with the position and team pinned on the left. |
+| **Fixtures**| Upcoming matches by date with kick-off time, venue and group/stage, plus a **PDF of every team's fixtures** (one team per page). |
 | **Results** | Played matches, newest first.                                                                                    |
-| **Stats**   | Top scorers, top assists, red cards, and a full discipline table (yellow and red cards).                         |
-| **Teams**   | Every team (by group) → squad with shirt numbers, positions and each player's goals, assists and cards, plus the team's matches. |
-| **Match**   | Score, date, venue, and a timeline of goals (with assists), own goals and cards.                                 |
+| **Stats**   | Top scorers (with penalties), top assists, red cards, a full discipline table (yellow and red cards), and coaches' cards. |
+| **Teams**   | Every team (by group) → coach, squad with shirt numbers, positions and each player's goals, assists and cards, plus the team's matches and a **fixtures PDF** to download or print. |
+| **Match**   | Score, date, venue, referee, and a timeline of goals (with assists, or marked *pen*), own goals and cards (players' and coaches'). |
 
 ### Official panel (`/official`, password protected)
 
@@ -80,9 +80,13 @@ There's no sign-up: visitors just view the site. Only people the admin creates a
   **Goals & cards**, and **Delete**. Add any match (including
   knockout matches such as "Semi-final" or "Final", which don't count toward the tables). Change
   teams, date, kick-off, venue or stage, delete matches, and enter scores quickly from the list.
-  - On each match's **Details** page you can record goals (with an optional assist), own goals,
-    and yellow and red cards, each with an optional minute. A warning appears if the goals
-    recorded don't add up to the score.
+  - On each match's **Details** page you can record goals (with an optional assist, or ticked as a
+    **penalty**, which has no assist), own goals, and yellow and red cards, each with an optional
+    minute. A card can go to a player or to the team's **coach** (the coach's name is kept on the
+    card). A warning appears if the goals recorded don't add up to the score.
+  - Each match can have a **referee**. Unlike the other details, the referee can still be added or
+    corrected after the match has a score.
+  - Each team's squad page has its **head coach** and a link to the team's fixtures PDF.
 - **Users & roles** (admin only): full user management for fans and officials.
   - **Create** an account (username, display name, password, role, favourite team).
   - **Search** and browse users grouped as Admin, Officials and Fans.
@@ -217,6 +221,7 @@ src/
     users.ts             accounts, roles, password hashing, sessions
     officials.ts         which officials manage which season; finds the season a record belongs to
     insights.ts          home-page numbers: records, fair play, a team's snapshot, upcoming matches
+    pdf.ts               a team's fixtures as a PDF (A4 landscape, built with pdf-lib)
     db.ts / auth.ts      the app's shared connection; sign-in cookies, current user, lock-out
 
   components/
@@ -236,7 +241,8 @@ src/
 
   app/                 routes only: fetch data, compose components
     actions.ts           server actions (each checks the user may manage that season, or is the admin)
-    season/[id]/         public: table, fixtures, results, stats, teams, match pages
+    season/[id]/         public: table, fixtures, results, stats, teams, match pages;
+                           fixtures.pdf and teams/[teamId]/fixtures.pdf download the fixture PDFs
     signin/ account/     accounts
     official/            seasons, users & roles, per-season tabs (teams & groups, schedule, matches, settings)
 supabase/

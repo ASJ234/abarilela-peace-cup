@@ -194,8 +194,13 @@ export async function drawGroups(db: Db, seasonId: number, random: () => number 
 // ---------------------------------------------------------------------------
 
 export async function listTeams(db: Db, seasonId: number): Promise<Team[]> {
-  const rows = await db.all("SELECT id, name, group_id FROM teams WHERE season_id = ? ORDER BY name", [seasonId]);
-  return rows.map((r) => ({ id: Number(r.id), name: String(r.name), groupId: r.group_id == null ? null : Number(r.group_id) }));
+  const rows = await db.all("SELECT id, name, group_id, coach FROM teams WHERE season_id = ? ORDER BY name", [seasonId]);
+  return rows.map((r) => ({
+    id: Number(r.id),
+    name: String(r.name),
+    groupId: r.group_id == null ? null : Number(r.group_id),
+    coach: r.coach == null ? null : String(r.coach),
+  }));
 }
 
 export async function getTeam(db: Db, teamId: number): Promise<(Team & { seasonId: number }) | null> {
@@ -206,6 +211,7 @@ export async function getTeam(db: Db, teamId: number): Promise<(Team & { seasonI
     id: Number(r.id),
     name: String(r.name),
     groupId: r.group_id == null ? null : Number(r.group_id),
+    coach: r.coach == null ? null : String(r.coach),
     seasonId: Number(r.season_id),
   };
 }
@@ -241,6 +247,13 @@ export async function renameTeam(db: Db, teamId: number, newName: string): Promi
   const clash = await db.get("SELECT 1 FROM teams WHERE season_id = ? AND name = ? AND id != ?", [team.seasonId, name, teamId]);
   if (clash) throw new LeagueError(`"${name}" is already in this season.`);
   await db.run("UPDATE teams SET name = ? WHERE id = ?", [name, teamId]);
+}
+
+/** Sets (or, when blank, clears) the team's head coach. */
+export async function setTeamCoach(db: Db, teamId: number, coachRaw: unknown): Promise<void> {
+  await mustGetTeam(db, teamId);
+  const coach = cleanText(coachRaw) ? requiredText(coachRaw, "Coach's name", 60) : null;
+  await db.run("UPDATE teams SET coach = ? WHERE id = ?", [coach, teamId]);
 }
 
 export async function setTeamGroup(db: Db, teamId: number, groupIdRaw: unknown): Promise<void> {

@@ -6,8 +6,8 @@ const FORM_STYLE: Record<FormResult, string> = { W: "bg-top", D: "bg-draw", L: "
 const FORM_LABEL: Record<FormResult, string> = { W: "Win", D: "Draw", L: "Loss" };
 
 /**
- * League table. On phones it keeps Pos, Team, P, W, D, L, GD, Pts;
- * goals for/against appear from `sm` and the form guide from `md`.
+ * League table. Every column, form guide included, is always shown: on narrow screens
+ * the table scrolls sideways while the position and team stay pinned on the left.
  */
 export function StandingsTable({
   rows,
@@ -24,64 +24,69 @@ export function StandingsTable({
       {rows.length === 0 ? (
         <EmptyState>No teams yet.</EmptyState>
       ) : (
-        <Card className="overflow-x-auto">
-          <table className="num w-full text-sm">
-            <thead className="bg-surface-2 text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="w-9 py-3 pl-3 text-left sm:w-12 sm:pl-4" title="Position">#</th>
-                <th className="py-3 text-left">Team</th>
-                <Th title="Played">P</Th>
-                <Th title="Won">W</Th>
-                <Th title="Drawn">D</Th>
-                <Th title="Lost">L</Th>
-                <Th title="Goals for" hideOnPhone>GF</Th>
-                <Th title="Goals against" hideOnPhone>GA</Th>
-                <Th title="Goal difference">GD</Th>
-                <Th title="Points" className="pr-3 sm:pr-4">Pts</Th>
-                <th className="hidden py-3 pr-4 text-left md:table-cell">Form</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => {
-                const nextZone = rows[i + 1]?.zone;
-                // Draw a divider where a highlighted zone ends or begins.
-                const divider = nextZone !== undefined && nextZone !== r.zone;
-                return (
-                  <tr
-                    key={r.teamId}
-                    className={[
-                      "border-t border-border",
-                      r.zone === "top" ? "bg-top-bg" : r.zone === "relegation" ? "bg-rel-bg" : "",
-                      divider ? "border-b-2 border-b-muted/40" : "",
-                    ].join(" ")}
-                  >
-                    <td className="relative py-3 pl-3 font-semibold sm:pl-4">
-                      {r.zone && (
-                        <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${r.zone === "top" ? "bg-top" : "bg-rel"}`} />
-                      )}
-                      {r.position}
-                    </td>
-                    <td className="max-w-[9rem] truncate py-3 pr-2 font-medium sm:max-w-none">
-                      {teamHref ? <Link href={teamHref(r.teamId)} className="hover:underline">{r.name}</Link> : r.name}
-                    </td>
-                    <Td>{r.played}</Td>
-                    <Td>{r.won}</Td>
-                    <Td>{r.drawn}</Td>
-                    <Td>{r.lost}</Td>
-                    <Td hideOnPhone>{r.goalsFor}</Td>
-                    <Td hideOnPhone>{r.goalsAgainst}</Td>
-                    <Td>{r.goalDiff > 0 ? `+${r.goalDiff}` : r.goalDiff}</Td>
-                    <td className="py-3 pr-3 text-center text-base font-bold sm:pr-4">{r.points}</td>
-                    <td className="hidden py-3 pr-4 md:table-cell">
-                      <FormGuide form={r.form} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto overscroll-x-contain" tabIndex={0} role="region" aria-label={`${title ?? "League"} table (scrolls sideways)`}>
+            <table className="num w-full min-w-[42rem] text-sm">
+              <thead className="bg-surface-2 text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="sticky left-0 z-10 w-10 bg-surface-2 py-3 pl-3 text-left sm:w-12 sm:pl-4" title="Position">#</th>
+                  <th className="sticky left-10 z-10 bg-surface-2 py-3 pr-3 text-left shadow-[inset_-1px_0_0_var(--border)] sm:left-12">Team</th>
+                  <Th title="Played">P</Th>
+                  <Th title="Won">W</Th>
+                  <Th title="Drawn">D</Th>
+                  <Th title="Lost">L</Th>
+                  <Th title="Goals for">GF</Th>
+                  <Th title="Goals against">GA</Th>
+                  <Th title="Goal difference">GD</Th>
+                  <Th title="Points">Pts</Th>
+                  <th className="py-3 pl-2 pr-4 text-left" title="Last five results, oldest first">Form</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const nextZone = rows[i + 1]?.zone;
+                  // Draw a divider where a highlighted zone ends or begins.
+                  const divider = nextZone !== undefined && nextZone !== r.zone;
+                  // Pinned cells need the row's own (opaque) background so scrolled cells don't show through.
+                  const bg = r.zone === "top" ? "bg-top-bg" : r.zone === "relegation" ? "bg-rel-bg" : "bg-surface";
+                  return (
+                    <tr
+                      key={r.teamId}
+                      className={["border-t border-border", bg, divider ? "border-b-2 border-b-muted/40" : ""].join(" ")}
+                    >
+                      <td className={`sticky left-0 z-[1] py-3 pl-3 font-semibold sm:pl-4 ${bg}`}>
+                        {r.zone && (
+                          <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${r.zone === "top" ? "bg-top" : "bg-rel"}`} />
+                        )}
+                        {r.position}
+                      </td>
+                      <td className={`sticky left-10 z-[1] max-w-[11rem] py-3 pr-3 font-medium shadow-[inset_-1px_0_0_var(--border)] sm:left-12 sm:max-w-none ${bg}`}>
+                        <span className="block truncate">
+                          {teamHref ? <Link href={teamHref(r.teamId)} className="hover:underline">{r.name}</Link> : r.name}
+                        </span>
+                      </td>
+                      <Td>{r.played}</Td>
+                      <Td>{r.won}</Td>
+                      <Td>{r.drawn}</Td>
+                      <Td>{r.lost}</Td>
+                      <Td>{r.goalsFor}</Td>
+                      <Td>{r.goalsAgainst}</Td>
+                      <Td>{r.goalDiff > 0 ? `+${r.goalDiff}` : r.goalDiff}</Td>
+                      <td className="py-3 text-center text-base font-bold">{r.points}</td>
+                      <td className="py-3 pl-2 pr-4">
+                        <FormGuide form={r.form} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
+      <p className="mt-1.5 text-xs text-muted sm:hidden" aria-hidden>
+        Swipe the table sideways to see goals and form →
+      </p>
     </section>
   );
 }
@@ -122,14 +127,14 @@ export function TableLegend({ season, grouped }: { season: Season; grouped: bool
   );
 }
 
-function Th({ children, title, hideOnPhone, className = "" }: { children: React.ReactNode; title: string; hideOnPhone?: boolean; className?: string }) {
+function Th({ children, title }: { children: React.ReactNode; title: string }) {
   return (
-    <th title={title} className={`w-8 py-3 text-center sm:w-10 ${hideOnPhone ? "hidden sm:table-cell" : ""} ${className}`}>
+    <th title={title} className="w-10 py-3 text-center">
       <abbr title={title} className="no-underline">{children}</abbr>
     </th>
   );
 }
 
-function Td({ children, hideOnPhone }: { children: React.ReactNode; hideOnPhone?: boolean }) {
-  return <td className={`py-3 text-center ${hideOnPhone ? "hidden sm:table-cell" : ""}`}>{children}</td>;
+function Td({ children }: { children: React.ReactNode }) {
+  return <td className="py-3 text-center">{children}</td>;
 }

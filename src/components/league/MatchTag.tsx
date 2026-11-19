@@ -8,13 +8,14 @@ export function MatchTag({ match }: { match: Match }) {
   return label ? <Badge>{label}</Badge> : null;
 }
 
-/** "📍 Venue · 15:00" style details line. */
-export function MatchMeta({ match, showKickoff = true }: { match: Match; showKickoff?: boolean }) {
+/** "📍 Venue · 15:00" style details line (with the referee when `showReferee`). */
+export function MatchMeta({ match, showKickoff = true, showReferee = false }: { match: Match; showKickoff?: boolean; showReferee?: boolean }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
       <MatchTag match={match} />
       {showKickoff && match.kickoff && <span>{match.kickoff}</span>}
       {match.venue && <span>📍 {match.venue}</span>}
+      {showReferee && match.referee && <span title="Referee">🧑‍⚖️ Referee: {match.referee}</span>}
     </span>
   );
 }

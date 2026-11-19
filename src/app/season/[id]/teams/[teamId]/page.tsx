@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MatchList } from "@/components/league";
-import { Card, PageHeader } from "@/components/ui";
+import { Card, FileLinkButton, PageHeader } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { getTeam, listGroups } from "@/lib/league";
 import { listMatches } from "@/lib/matches";
@@ -33,8 +33,13 @@ export default async function TeamPage({ params }: Props) {
       <PageHeader
         level={2}
         title={team.name}
-        subtitle={group?.name}
+        subtitle={[group?.name, team.coach ? `Coach: ${team.coach}` : null].filter(Boolean).join(" · ") || undefined}
         back={{ href: `/season/${season.id}/teams`, label: "All teams" }}
+        actions={
+          <FileLinkButton href={`/season/${season.id}/teams/${team.id}/fixtures.pdf`} target="_blank" rel="noopener">
+            📄 Fixtures (PDF)
+          </FileLinkButton>
+        }
       />
 
       <Card className="overflow-hidden">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
 
-export type StatRow = { key: number; name: string; teamName: string; teamHref?: string; values: (number | string)[] };
+export type StatRow = { key: number | string; name: string; teamName: string; teamHref?: string; values: (number | string)[] };
 
 /** Ranked player list (top scorers, assists, cards). Equal values share a rank. */
 export function StatTable({

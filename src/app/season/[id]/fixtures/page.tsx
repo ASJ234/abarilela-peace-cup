@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { MatchList } from "@/components/league";
+import { FileLinkButton } from "@/components/ui";
 import { getDb } from "@/lib/db";
 import { fixtureCount, listMatches } from "@/lib/matches";
 import { loadSeason } from "../data";
@@ -17,10 +18,19 @@ export default async function FixturesPage({ params }: Props) {
   const any = (await fixtureCount(db, season.id)) > 0;
 
   return (
-    <MatchList
-      matches={upcoming}
-      hrefFor={(m) => `/season/${season.id}/match/${m.id}`}
-      emptyText={any ? "All matches have been played. 🎉" : "Fixtures haven't been published yet."}
-    />
+    <div className="space-y-4">
+      {any && (
+        <div className="flex justify-end">
+          <FileLinkButton href={`/season/${season.id}/fixtures.pdf`} target="_blank" rel="noopener" size="sm">
+            📄 Fixtures by team (PDF)
+          </FileLinkButton>
+        </div>
+      )}
+      <MatchList
+        matches={upcoming}
+        hrefFor={(m) => `/season/${season.id}/match/${m.id}`}
+        emptyText={any ? "All matches have been played. 🎉" : "Fixtures haven't been published yet."}
+      />
+    </div>
   );
 }

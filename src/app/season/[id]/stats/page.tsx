@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { StatTable, type StatRow } from "@/components/league";
 import { getDb } from "@/lib/db";
-import { discipline, topAssists, topScorers } from "@/lib/players";
+import { coachCards, discipline, topAssists, topScorers } from "@/lib/players";
 import type { PlayerStat } from "@/lib/types";
 import { loadSeason } from "../data";
 
@@ -20,10 +20,17 @@ export default async function StatsPage({ params }: Props) {
 
   const cards = await discipline(db, season.id);
   const reds = cards.filter((c) => c.red > 0);
+  const scorers = await topScorers(db, season.id);
+  const coaches = await coachCards(db, season.id);
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <StatTable title="⚽ Top scorers" columns={["Goals"]} rows={toRows(await topScorers(db, season.id))} emptyText="No goals recorded yet." />
+      <StatTable
+        title="⚽ Top scorers"
+        columns={["Goals", "Pens"]}
+        rows={scorers.map((s) => ({ key: s.playerId, name: s.name, teamName: s.teamName, teamHref: teamHref(s.teamId), values: [s.count, s.penalties] }))}
+        emptyText="No goals recorded yet."
+      />
       <StatTable title="🎯 Top assists" columns={["Assists"]} rows={toRows(await topAssists(db, season.id))} emptyText="No assists recorded yet." />
       <StatTable
         title="🟥 Red cards"
@@ -37,6 +44,14 @@ export default async function StatsPage({ params }: Props) {
         rows={cards.map((c) => ({ key: c.playerId, name: c.name, teamName: c.teamName, teamHref: teamHref(c.teamId), values: [c.yellow, c.red] }))}
         emptyText="No cards shown yet."
       />
+      {coaches.length > 0 && (
+        <StatTable
+          title="🧑‍💼 Coaches' cards"
+          columns={["🟨", "🟥"]}
+          rows={coaches.map((c) => ({ key: `${c.teamId}-${c.name}`, name: c.name, teamName: c.teamName, teamHref: teamHref(c.teamId), values: [c.yellow, c.red] }))}
+          emptyText=""
+        />
+      )}
     </div>
   );
 }
