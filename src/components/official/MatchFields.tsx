@@ -23,7 +23,8 @@ export function MatchFields({
     format === "groups" && t.groupId != null ? `${t.name} (${groupName.get(t.groupId)})` : t.name;
   const teamSelect = (name: string, label: string, value?: number) => (
     <Field label={label}>
-      <Select name={name} required defaultValue={value ?? ""}>
+      {/* key: remount after save so the form reset shows the saved team (see SquadEditor) */}
+      <Select key={value ?? ""} name={name} required defaultValue={value ?? ""}>
         <option value="" disabled>Choose team…</option>
         {teams.map((t) => <option key={t.id} value={t.id}>{teamLabel(t)}</option>)}
       </Select>

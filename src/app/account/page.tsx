@@ -43,7 +43,8 @@ export default async function AccountPage() {
             <Input name="name" required maxLength={60} defaultValue={me.name} autoComplete="name" />
           </Field>
           <Field label="Favourite team" hint="Shown on your home page with its next match, position and form.">
-            <Select name="favouriteTeamId" defaultValue={me.favouriteTeamId ?? ""}>
+            {/* key: remount after save so the form reset shows the saved team (see SquadEditor) */}
+            <Select key={me.favouriteTeamId ?? ""} name="favouriteTeamId" defaultValue={me.favouriteTeamId ?? ""}>
               <option value="">No favourite</option>
               <TeamOptions teams={listTeamChoices(getDb())} />
             </Select>
