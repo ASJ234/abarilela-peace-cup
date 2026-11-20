@@ -26,7 +26,7 @@ export function StandingsTable({
         <EmptyState>No teams yet.</EmptyState>
       ) : (
         <Card className="overflow-hidden">
-          <div className="overflow-x-auto overscroll-x-contain md:overflow-x-visible" tabIndex={0} role="region" aria-label={`${title ?? "League"} table (scrolls sideways)`}>
+          <div className="isolate overflow-x-auto overscroll-x-contain md:overflow-x-visible" tabIndex={0} role="region" aria-label={`${title ?? "League"} table (scrolls sideways)`}>
             <table className="num w-full min-w-[42rem] text-sm md:min-w-0">
               <thead className="bg-surface-2 text-xs uppercase tracking-wide text-muted">
                 <tr>

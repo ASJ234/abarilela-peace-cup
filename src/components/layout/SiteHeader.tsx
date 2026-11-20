@@ -5,7 +5,7 @@ import { UserMenu } from "./UserMenu";
 
 export function SiteHeader({ user }: { user: User | null }) {
   return (
-    <header className="sticky top-0 z-10 bg-brand text-brand-fg shadow-sm">
+    <header className="sticky top-0 z-40 bg-brand text-brand-fg shadow-sm">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:py-3">
         <Link href="/" className="flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight sm:text-lg">
           <span aria-hidden className="text-2xl">⚽</span>
