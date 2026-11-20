@@ -150,6 +150,11 @@ once goals or cards are recorded, except to swap home and away.
 
 Requires **Node.js 22.13 or newer** and a **Supabase** project (the free plan is fine).
 
+```bash
+git clone https://github.com/ASJ234/tournament-management-system.git
+cd tournament-management-system
+```
+
 1. **Create the tables.** In the Supabase dashboard, open **SQL Editor** and run each file in
    [`supabase/migrations/`](supabase/migrations) in name order: paste the whole file, then **Run**.
    They're safe to run again.
