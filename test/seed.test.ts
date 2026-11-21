@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { seedDemo } from "../scripts/seed";
 import { featuredSeason } from "../src/lib/insights";
+import { matchTimeline } from "../src/lib/types";
 import * as knockout from "../src/lib/knockout";
 import * as league from "../src/lib/league";
 import * as matches from "../src/lib/matches";
@@ -52,6 +53,12 @@ describe("demo data (npm run seed)", () => {
     );
     assert.ok(Number(kinds!.pens) > 0 && Number(kinds!.ogs) > 0 && Number(kinds!.coach_cards) > 0, JSON.stringify(kinds));
     assert.ok((await league.listTeams(db, cup.id)).every((t) => t.coach));
+
+    // Second yellows: the Peace League final and a Community Cup semi-final each have one, with its red.
+    for (const m of [lgMatches.find((x) => x.stage === "Final")!, cupMatches.filter((x) => x.stage === "Semi-final")[1]]) {
+      const sentOff = matchTimeline(await matches.listEvents(db, m.id)).filter((x) => x.secondYellow);
+      assert.ok(sentOff.length > 0 && sentOff.every((x) => x.red), `${m.home.name} v ${m.away.name}`);
+    }
     assert.ok(cupMatches.every((m) => m.referee && m.venue));
 
     // People.
