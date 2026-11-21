@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteEventAction, deleteMatchAction, setRefereeAction, updateMatchAction } from "@/app/actions";
 import { ActionForm, DeleteButton, SubmitButton } from "@/components/forms";
-import { EventList, EVENT_LABEL, MatchMeta } from "@/components/league";
+import { EventList, MatchMeta, entryLabel } from "@/components/league";
 import { EventForm, MatchFields, ResultForm } from "@/components/official";
 import { Alert, Field, Input, PageHeader, Section } from "@/components/ui";
 import { getDb } from "@/lib/db";
@@ -56,16 +56,20 @@ export default async function MatchEditor({ params }: { params: Promise<{ id: st
           <EventList
             match={m}
             events={events}
-            renderAction={(e) => (
-              <DeleteButton
-                action={deleteEventAction}
-                fields={{ eventId: e.id }}
-                what={`this ${EVENT_LABEL[e.type].toLowerCase()}`}
-                verb="Remove"
-                label="✕"
-                detail={`${EVENT_LABEL[e.type]}${e.penalty ? " (penalty)" : ""} for ${eventPerson(e)}${e.coach != null ? " (coach)" : ""}${e.minute != null ? ` (${formatMinute(e)})` : ""} will be removed from the match and the stats.`}
-              />
-            )}
+            renderAction={(x) => {
+              const e = x.event;
+              const what = x.secondYellow ? "Second yellow card" : entryLabel(x);
+              return (
+                <DeleteButton
+                  action={deleteEventAction}
+                  fields={{ eventId: e.id }}
+                  what={`this ${what.toLowerCase()}`}
+                  verb="Remove"
+                  label="✕"
+                  detail={`${what}${e.penalty ? " (penalty)" : ""} for ${eventPerson(e)}${e.coach != null ? " (coach)" : ""}${e.minute != null ? ` (${formatMinute(e)})` : ""}${x.red ? " and the red card it brought" : ""} will be removed from the match and the stats.`}
+                />
+              );
+            }}
           />
         </div>
         <div className="border-t border-border pt-4">

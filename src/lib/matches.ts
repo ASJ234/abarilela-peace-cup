@@ -3,7 +3,7 @@ import { generateRoundRobin } from "./fixtures";
 import { listDates, listGroups, listTeams, mustGetSeason } from "./league";
 import { SchedulingError, scheduleMatches } from "./scheduler";
 import { computeStandings } from "./standings";
-import { PLAYED_MATCH_LOCKED, type EventType, type GroupTable, type Match, type MatchEvent, type Season } from "./types";
+import { PLAYED_MATCH_LOCKED, type EventType, type GroupTable, type Match, type MatchEvent, type Season, matchTimeline } from "./types";
 import {
   LeagueError, type Row, isBlank, optionalDate, optionalId, optionalNumber, optionalText, optionalTime, wholeNumber,
 } from "./validate";
@@ -434,13 +434,15 @@ export async function addEvent(db: Db, matchId: number, input: EventInput): Prom
     const saved = await db.get("SELECT coach FROM teams WHERE id = ?", [teamId]);
     const name = isBlank(input.coachName) ? saved?.coach : input.coachName;
     if (isBlank(name)) throw new LeagueError("Enter the coach's name.");
-    const coachName = optionalText(name, "Coach's name", 60);
-    const r = await db.get(
-      `INSERT INTO match_events (match_id, type, team_id, coach_name, minute, added_minute)
-       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-      [matchId, type, teamId, coachName, minute, addedMinute],
-    );
-    return Number(r!.id);
+    const coachName = optionalText(name, "Coach's name", 60)!;
+    return addCard(db, matchId, type, "coach_name = ?", coachName, async (tx, cardType) => {
+      const r = await tx.get(
+        `INSERT INTO match_events (match_id, type, team_id, coach_name, minute, added_minute)
+         VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        [matchId, cardType, teamId, coachName, minute, addedMinute],
+      );
+      return Number(r!.id);
+    }, teamId);
   }
 
   const playerId = optionalId(input.playerId);
@@ -451,6 +453,17 @@ export async function addEvent(db: Db, matchId: number, input: EventInput): Prom
     throw new LeagueError(
       type === "own_goal" ? "For an own goal, choose a player from the team that conceded." : "That player isn't in this team's squad.",
     );
+  }
+
+  if (isCard) {
+    return addCard(db, matchId, type, "player_id = ?", playerId, async (tx, cardType) => {
+      const r = await tx.get(
+        `INSERT INTO match_events (match_id, type, team_id, player_id, minute, added_minute)
+         VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        [matchId, cardType, teamId, playerId, minute, addedMinute],
+      );
+      return Number(r!.id);
+    });
   }
 
   const penalty = type === "goal" && (input.penalty === true || input.penalty === "on" || input.penalty === "1");
@@ -472,8 +485,40 @@ export async function addEvent(db: Db, matchId: number, input: EventInput): Prom
   return Number(r!.id);
 }
 
+/**
+ * Records a card for one person (picked out by `holder` = `value`, plus `teamId` for a coach).
+ * Nobody can be booked after being sent off, and a second yellow also records the red card
+ * it brings, at the same minute.
+ */
+async function addCard(
+  db: Db, matchId: number, type: EventType, holder: string, value: unknown,
+  insert: (tx: Db, type: EventType) => Promise<number>, teamId?: number,
+): Promise<number> {
+  return db.tx(async (tx) => {
+    const cards = await tx.all(
+      `SELECT type FROM match_events WHERE match_id = ? AND type IN ('yellow', 'red') AND ${holder}${teamId == null ? "" : " AND team_id = ?"}`,
+      teamId == null ? [matchId, value] : [matchId, value, teamId],
+    );
+    const yellows = cards.filter((c) => c.type === "yellow").length;
+    if (yellows >= 2 || cards.some((c) => c.type === "red")) {
+      throw new LeagueError("They have already been sent off in this match, so no more cards can be recorded for them.");
+    }
+    const id = await insert(tx, type);
+    if (type === "yellow" && yellows === 1) await insert(tx, "red");
+    return id;
+  });
+}
+
+/** Removes a goal or card. Removing a second yellow also removes the red card it brought. */
 export async function deleteEvent(db: Db, eventId: number): Promise<void> {
-  await db.run("DELETE FROM match_events WHERE id = ?", [eventId]);
+  await db.tx(async (tx) => {
+    const row = await tx.get("SELECT match_id FROM match_events WHERE id = ?", [eventId]);
+    if (!row) return;
+    const entry = matchTimeline(await listEvents(tx, Number(row.match_id)))
+      .find((x) => x.event.id === eventId || x.red?.id === eventId);
+    const ids = entry?.secondYellow && entry.red ? [entry.event.id, entry.red.id] : [eventId];
+    await tx.run(`DELETE FROM match_events WHERE id IN (${ids.map(() => "?").join(", ")})`, ids);
+  });
 }
 
 /** Goals recorded as events per side, to compare with the entered score. */
