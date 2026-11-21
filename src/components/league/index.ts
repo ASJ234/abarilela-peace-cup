@@ -1,5 +1,5 @@
 // Football-specific display components shared by the public site and the official panel.
-export { EventList, EVENT_ICON, EVENT_LABEL } from "./EventList";
+export { EventList, EVENT_ICON, EVENT_LABEL, entryLabel } from "./EventList";
 export { MatchDayList } from "./MatchDayList";
 export { MatchList } from "./MatchList";
 export { MatchMeta, MatchTag } from "./MatchTag";

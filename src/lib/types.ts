@@ -125,3 +125,39 @@ export type PlayerStat = {
 };
 
 export type DisciplineStat = Omit<PlayerStat, "count"> & { red: number; yellow: number };
+
+/** Who a card belongs to within one match: a player, or a team's coach. */
+const cardHolder = (e: MatchEvent) => (e.player ? `p${e.player.id}` : `c${e.teamId}:${e.coach}`);
+
+/**
+ * A match timeline entry. A second yellow card and the red card it brings are one entry
+ * (`secondYellow`), shown together the way match centres do; `red` is that red card, if recorded.
+ */
+export type TimelineEntry = { event: MatchEvent; secondYellow: boolean; red: MatchEvent | null };
+
+/** Groups each person's second yellow with their red card. `events` are in match order. */
+export function matchTimeline(events: MatchEvent[]): TimelineEntry[] {
+  const yellows = new Map<string, number>();
+  const secondYellows = new Map<string, TimelineEntry>();
+  const entries: TimelineEntry[] = [];
+  for (const e of events) {
+    if (e.type === "yellow") {
+      const n = (yellows.get(cardHolder(e)) ?? 0) + 1;
+      yellows.set(cardHolder(e), n);
+      const entry = { event: e, secondYellow: n === 2, red: null };
+      if (n === 2) secondYellows.set(cardHolder(e), entry);
+      entries.push(entry);
+    } else if (e.type === "red" && secondYellows.get(cardHolder(e))?.red === null) {
+      secondYellows.get(cardHolder(e))!.red = e;
+    } else {
+      entries.push({ event: e, secondYellow: false, red: null });
+    }
+  }
+  // A red recorded before the second yellow (e.g. same minute, entered first) is paired too.
+  return entries.filter((x) => {
+    if (x.event.type !== "red") return true;
+    const sy = secondYellows.get(cardHolder(x.event));
+    if (sy && sy.red === null) { sy.red = x.event; return false; }
+    return true;
+  });
+}
