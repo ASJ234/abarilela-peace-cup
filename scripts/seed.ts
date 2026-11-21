@@ -78,9 +78,10 @@ async function setVenuesAndReferees(seasonId: number) {
 /**
  * Plays a match: a score (or the one given), then the goal events to match it, with
  * penalties, own goals, assists, and cards for players and now and then a coach.
- * A level knockout match also gets a shoot-out.
+ * A level knockout match also gets a shoot-out. `sendOff` makes sure an away player is
+ * sent off with a second yellow.
  */
-async function play(m: Match, score?: [number, number]) {
+async function play(m: Match, score?: [number, number], opts: { sendOff?: boolean } = {}) {
   const goals = () => Math.floor(rand() * rand() * 5);
   const [hs, as] = score ?? [goals(), goals()];
   const knockoutDraw = m.stage != null && hs === as;
@@ -107,9 +108,26 @@ async function play(m: Match, score?: [number, number]) {
         minute: late ? `90+${1 + Math.floor(rand() * 5)}` : minute(),
       });
     }
-    if (chance(0.6)) await matches.addEvent(db, m.id, { type: "yellow", teamId: side, playerId: pick(squad).id, minute: minute() });
-    if (chance(0.25)) await matches.addEvent(db, m.id, { type: "yellow", teamId: side, playerId: pick(squad).id, minute: minute(46) });
-    if (chance(0.08)) await matches.addEvent(db, m.id, { type: "red", teamId: side, playerId: pick(squad).id, minute: minute(46) });
+    // Cards: bookings, now and then a second yellow (which also records the red), a straight red,
+    // and a booked coach. Nobody gets a card after being sent off.
+    const booked = new Map<number, number>(); // player id -> minute of their yellow
+    const card = (type: "yellow" | "red", playerId: number, at: number) =>
+      matches.addEvent(db, m.id, { type, teamId: side, playerId, minute: at });
+    const book = async (from: number, to: number) => {
+      const p = pick(squad.filter((x) => !booked.has(x.id)));
+      const at = minute(from, to);
+      await card("yellow", p.id, at);
+      booked.set(p.id, at);
+    };
+    if (chance(0.6)) await book(1, 70);
+    if (chance(0.25)) await book(46, 80);
+    const secondYellow = (opts.sendOff && side === m.away.id) || chance(0.08);
+    if (secondYellow) {
+      if (booked.size === 0) await book(10, 60);
+      const [id, first] = pick([...booked]);
+      await card("yellow", id, minute(first + 1, 90));
+    }
+    if (chance(0.06)) await card("red", pick(squad.filter((x) => !booked.has(x.id))).id, minute(46));
     if (chance(0.1)) await matches.addEvent(db, m.id, { type: "yellow", teamId: side, playerId: matches.COACH, minute: minute(30) });
   }
 }
@@ -156,7 +174,7 @@ export async function seedDemo(target: Db, { replace = false } = {}) {
   await knockout.createNextRound(db, lg.id, { date: fromToday(-7), kickoff: "16:00", venue: "Abarilela Main Ground", thirdPlace: true });
   await setVenuesAndReferees(lg.id);
   await play((await stageMatches(lg.id, "Third place"))[0], [3, 2]);
-  await play((await stageMatches(lg.id, "Final"))[0], [2, 0]);
+  await play((await stageMatches(lg.id, "Final"))[0], [2, 0], { sendOff: true });
 
   // --- Community Cup: groups done, semis played, final coming up -------------
   const cup = await createSeason("Community Cup 2026", "groups", [
@@ -174,7 +192,7 @@ export async function seedDemo(target: Db, { replace = false } = {}) {
   await matches.updateMatch(db, cupSemi1.id, { homeTeamId: cupSemi1.home.id, awayTeamId: cupSemi1.away.id, date: cupSemi1.date, kickoff: "13:00", venue: cupSemi1.venue, referee: "Sarah Akello", stage: "Semi-final" });
   await matches.updateMatch(db, cupSemi2.id, { homeTeamId: cupSemi2.home.id, awayTeamId: cupSemi2.away.id, date: cupSemi2.date, kickoff: "16:00", venue: cupSemi2.venue, referee: "James Ochieng", stage: "Semi-final" });
   await play((await stageMatches(cup.id, "Semi-final"))[0], [2, 2]); // goes to penalties
-  await play((await stageMatches(cup.id, "Semi-final"))[1], [3, 1]);
+  await play((await stageMatches(cup.id, "Semi-final"))[1], [3, 1], { sendOff: true });
   await knockout.createNextRound(db, cup.id, { date: fromToday(10), venue: "Abarilela Main Ground", thirdPlace: true });
   for (const [stage, kickoff, referee] of [["Final", "16:00", "Robert Okwir"], ["Third place", "13:00", "Grace Lamaro"]] as const) {
     const m = (await stageMatches(cup.id, stage))[0];
